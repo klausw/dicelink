@@ -1,0 +1,14 @@
+application: dicelink
+version: 4
+runtime: python
+api_version: 1
+
+handlers:
+- url: /static
+  static_dir: static
+- url: /img
+  static_dir: img
+- url: /_wave/.*
+  script: dicelink_wave.py
+- url: /.*
+  script: dicelink.py
