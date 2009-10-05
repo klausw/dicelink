@@ -1,9 +1,11 @@
+import re
+
 from waveapi import document
 from waveapi import events
 from waveapi import model
 from waveapi import robot
 
-import re
+import persist
 import roll
 
 VERSION='7'
@@ -40,6 +42,7 @@ def OnBlipSubmitted(properties, context):
       (' [%s]' % detail, 'style/color', 'gray'),
     ])
     #out.append('%s rolled %s: %d [%s]' % (creator, spec['spec'], num, detail))
+    persist.SaveMsg(creator, 'rolled %s: %d [%s]' % (spec['spec'], num, detail))
   if out:
     root_wavelet = context.GetRootWavelet()
     root_wavelet.CreateBlip().GetDocument().SetText('\n'.join(out))

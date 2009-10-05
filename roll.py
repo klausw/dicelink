@@ -36,6 +36,8 @@ def GetRollMatches(txt):
   return out
 
 MAX_NUM=1000
+MAX_SIDES=100
+MAX_BRUTAL=5
 
 def RollDice(spec):
   num = int(spec['num'])
@@ -45,10 +47,13 @@ def RollDice(spec):
   brutal = int(spec['brutal'])
   delta = int(spec['delta'])
 
+  # some sanity checks to help prevent CPU burning abuse
   if num > MAX_NUM:
     return 0, ('Error: number of dice must be <= %d' % MAX_NUM)
-  if brutal > sides:
-    return 0, 'Error: brutal number must be <= number of sides'
+  if sides > MAX_SIDES:
+    return 0, ('Error: number of sides must be <= %d' % MAX_SIDES)
+  if brutal > sides or brutal > MAX_BRUTAL:
+    return 0, ('Error: brutal number must be <= number of sides and <= %d' % MAX_BRUTAL)
 
   detail = []
   result = 0

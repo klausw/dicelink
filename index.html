@@ -1,0 +1,15 @@
+<html>
+  <body>
+    {% for msg in msgs %}
+      <b>{{ msg.author }}:</b>
+      {{ msg.content|escape }}<br />
+    {% endfor %}
+
+    <form action="/roll" method="post">
+      <div><input type="text" name="content"><input type="submit" value="Roll"></div>
+    </form>
+
+    <a href="{{ url }}">{{ url_linktext }}</a>
+
+  </body>
+</html>
