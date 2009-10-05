@@ -32,7 +32,8 @@ def GetRollMatches(txt):
   for m in ROLL_RE.finditer(txt):
     dict = m.groupdict(0)
     dict['start'], dict['end'] = m.span()
-    out.append(dict)
+    if not dict['output']:
+      out.append(dict)
   return out
 
 MAX_NUM=1000
