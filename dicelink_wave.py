@@ -39,7 +39,9 @@ def OnBlipSubmitted(properties, context):
     offset += SetTextWithAttributes(doc, match_start, match_end, [
       (spec['spec'], 'style/color', '#aa00ff'),
       ('=%d' % num, 'style/fontWeight', 'bold'),
-      (' [%s]' % detail, 'style/color', 'gray'),
+      (' [', 'style/color', 'black'),
+      (detail, 'style/color', 'gray'),
+      (']', 'style/color', 'black'),
     ])
     #out.append('%s rolled %s: %d [%s]' % (creator, spec['spec'], num, detail))
     persist.SaveMsg(creator, 'rolled %s: %d [%s]' % (spec['spec'], num, detail))
