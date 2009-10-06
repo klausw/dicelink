@@ -12,7 +12,7 @@ ROLL_RE = re.compile(r'''
 	(?P<sides> \d+ )       # 6d{8}b2+10
 	(?:                    # 6d8{b(2)}+10, optional
 	  b
-	  (?P<brutal> \d+ )
+	  (?P<reroll_limit> \d+ )
 	)?
 	(?P<delta> [+-]\d+ )?  # 6d8b2{+10}, optional
       )
@@ -38,14 +38,14 @@ def GetRollMatches(txt):
 
 MAX_NUM=1000
 MAX_SIDES=100
-MAX_BRUTAL=5
+MAX_REROLL_LIMIT=5
 
 def RollDice(spec):
   num = int(spec['num'])
   if num == 0:
     num = 1
   sides = int(spec['sides'])
-  brutal = int(spec['brutal'])
+  reroll_limit = int(spec['reroll_limit'])
   delta = int(spec['delta'])
 
   # some sanity checks to help prevent CPU burning abuse
@@ -53,29 +53,28 @@ def RollDice(spec):
     return 0, ('Error: number of dice must be <= %d' % MAX_NUM)
   if sides > MAX_SIDES:
     return 0, ('Error: number of sides must be <= %d' % MAX_SIDES)
-  if brutal > sides or brutal > MAX_BRUTAL:
-    return 0, ('Error: brutal number must be <= number of sides and <= %d' % MAX_BRUTAL)
+  if reroll_limit > sides or reroll_limit > MAX_REROLL_LIMIT:
+    return 0, ('Error: reroll_limit number must be <= number of sides and <= %d' % MAX_REROLL_LIMIT)
 
   detail = []
   result = 0
   for n in xrange(num):
+    rolls = []
     while True:
       roll = random.randint(1, sides)
-      if roll < brutal:
-        detail.append('(%d)' % roll)
-      else:
+      rolls.append(str(roll))
+      if roll >= reroll_limit:
         result += roll
-        detail.append('%d,' % roll)
+        detail.append('\\'.join(rolls))
 	break
 
   result += delta
-  detail.append('%+d' % delta)
 
-  return result, ''.join(detail)
+  return result, '+'.join(detail)
 
 if __name__ == '__main__':
   random.seed(42)
-  for spec in GetRollMatches('d6, 2d6+10, 6d8b2+10=33 [foo]'):
+  for spec in GetRollMatches('d6, 2d6+10, 6d8b2+10'):
     print repr(spec)
     result, detail = RollDice(spec)
     print '%s: %d [%s]' % (spec['spec'], result, detail)
