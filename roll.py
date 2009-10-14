@@ -70,7 +70,14 @@ def RollDice(spec):
 
   result += delta
 
-  return result, '+'.join(detail)
+  return result, ','.join(detail)
+
+def RollDie(spec):
+  matches = GetRollMatches(spec)
+  if matches:
+    return RollDice(matches[0])
+  else:
+    return int(spec), spec
 
 if __name__ == '__main__':
   random.seed(42)
