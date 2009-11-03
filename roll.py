@@ -84,4 +84,4 @@ if __name__ == '__main__':
   for spec in GetRollMatches('d6, 2d6+10, 6d8b2+10'):
     print repr(spec)
     result, detail = RollDice(spec)
-    print '%s: %d [%s]' % (spec['spec'], result, detail)
+    print '%s: %d (%s)' % (spec['spec'], result, detail)

@@ -77,7 +77,7 @@ class Result(object):
     self.details = details
     self.flags = flags
   def detail(self):
-    return '+'.join(self.details)
+    return '+'.join(self.details).replace('--','').replace('+-', '-')
   def publicval(self):
     return ':'.join([str(self.value)] + self.flags.keys())
   def secretval(self):
@@ -117,7 +117,7 @@ def RollDice(num_dice, sides, env):
     if 'opt_crit_notify' in env and result >= env['opt_crit_notify']:
       flags['Critical'] = True
 
-  detail = '%sd%d[%s]' % (
+  detail = '%sd%d(%s)' % (
     {1:''}.get(num_dice, str(num_dice)),
     sides,
     ','.join(out))
@@ -143,8 +143,10 @@ def ParseExpr(expr, sym, parent_env):
     env_copy[key] = val
     return env_copy
 
-  def Add(new_result):
-    result[0].value += new_result.value
+  def Add(new_result, sign):
+    result[0].value += sign * new_result.value
+    if sign < 0:
+      new_result.details[0] = '-'+new_result.details[0]
     result[0].details += new_result.details
     for k, v in new_result.flags.iteritems():
       result[0].flags[k] = v
@@ -157,12 +159,24 @@ def ParseExpr(expr, sym, parent_env):
     else:
       return default
 
-  expr = expr.lstrip()
+  expr = str(expr).lstrip()
   start = 0
+  sign = +1
   while True:
     env['stats']['objects'] += 1
     if env['stats']['objects'] > MAX_OBJECTS:
       raise ParseError('Max number of objects exceeded')
+    #print "matcher: expr start '%s'" % (expr[start:])
+
+    # Optional +/-
+    msign = PLUSMINUS_RE.match(expr[start:])
+    if msign:
+      if msign.group(1) == '-':
+        sign = -1
+      else:
+        sign = 1
+      start += msign.end()
+
     m = OBJECT_RE.match(expr[start:])
     if not m:
       break
@@ -172,22 +186,22 @@ def ParseExpr(expr, sym, parent_env):
       limit = int(GetNotNone(dict, 'limit', env.get('reroll_limit', 1)))
       Add(RollDice(int(GetNotNone(dict, 'num_dice', 1)),
 	            int(GetNotNone(dict, 'sides', 1)),
-		    DynEnv('reroll_limit', limit)))
+		    DynEnv('reroll_limit', limit)), sign)
     elif dict['number']:
-      Add(Result(int(matched), matched, {}))
+      Add(Result(int(matched), [matched], {}), sign)
     elif dict['symbol']:
       expansion = LookupSym(matched, sym, start==0)
       if expansion is None:
         raise ParseError('Symbol "%s" not found' % matched)
-      Add(ParseExpr(expansion, sym, env)[0])
+      Add(ParseExpr(expansion, sym, env)[0], sign)
     elif dict['func']:
       fname = dict['name']
       fexpr = dict['expr']
       # print 'fexpr=%s' % fexpr
       if fname == 'max':
-        Add(ParseExpr(fexpr, sym, DynEnv('max', True))[0])
+        Add(ParseExpr(fexpr, sym, DynEnv('max', True))[0], sign)
       elif fname == 'avg':
-        Add(ParseExpr(fexpr, sym, DynEnv('avg', True))[0])
+        Add(ParseExpr(fexpr, sym, DynEnv('avg', True))[0], sign)
       elif N_TIMES_RE.match(fname):
         ntimes = int(N_TIMES_RE.match(fname).group(1))
 	if ntimes > 100:
@@ -199,21 +213,6 @@ def ParseExpr(expr, sym, parent_env):
 
     start += m.end()
 
-    m = PLUSMINUS_RE.match(expr[start:])
-    if not m:
-      break
-    start += m.end()
-
-    if m.group(1) == '-':
-      # Hack: negate next object
-      m = OBJECT_RE.match(expr[start:])
-      if not m:
-        raise ParseError('Missing object after "-"')
-      negobj = m.group(0)
-      start += m.end()
-      neg_result = ParseExpr(negobj, sym, env)[0]
-      Add(Result(-neg_result.value, ['(-%s)' % neg_result.detail()], neg_result.flags))
-
   return result
 
 if __name__ == '__main__':
@@ -223,6 +222,9 @@ if __name__ == '__main__':
     'Deft Strike': 'd4+4',
     'Sneak Attack': '2d8+7',
     'Recursive': 'Recursive',
+    'Armor': '2',
+    'NegArmor': '-2',
+    'Trained': '5',
   }
 
   sym_tests = [
@@ -241,31 +243,46 @@ if __name__ == '__main__':
 
   tests = [
     ('d20+5', 'Nat20'),
-    ('42', '42'),
-    ('  42   ', '42'),
-    ('2+4', '6'),
-    (' 2 +  4  ', '6'),
-    ('d20+12', 'd20[18]+12=30'),
-    ('3d6', '3d6[6,6,5]=17'),
-    ('12d6b2', '3d6[6,6,5]=17'),
-    ('Deft Strike', ''),
-    ('Deft Strike + Sneak Attack + 2', 'd4[2]+4+2d8[1,8]+7+2=24'),
-    ('Deft Strike + -1', ''),
-    ('Deft Strike - 1', ''),
-    ('Deft Strike - 2d4', ''),
-    ('max(Deft Strike+Sneak Attack) + 4d10', '4+4+16+7+4d10[2,10,5,1]=49'),
-    ('max(3d6) + 3d6 + avg(3d6b3) + max(d8)', ''),
-    ('12x(d20+7)', 'd20[3]+7=10, d20[11]+7=18, d20[19]+7=26'),
+    ('42', 42),
+    ('  42   ', 42),
+    ('2+4', 6),
+    (' 2 +  4  ', 6),
+    ('5 + Trained - Armor', 8),
+    ('5 - Armor + Trained', 8),
+    ('5 + NegArmor + Trained', 8),
+    ('2 - NegArmor', 4),
+    ('d20+12', 31),
+    ('3d6', 8),
+    ('12d6b2', 51),
+    ('Deft Strike', 6),
+    ('Deft Strike + Sneak Attack + 2', 17),
+    ('Deft Strike + -1', 5),
+    ('Deft Strike - 1', 5),
+    ('Deft Strike - 2d4', -1),
+    ('max(Deft Strike+Sneak Attack) + 4d10', 45),
+    ('max(3d6) + 3d6 + avg(3d6b3) + max(d8)', 50.5),
+    ('12x(d20+7)', ''),
     ('3x(Deft Strike)', ''),
-    ('10d6b7', ParseError('bad')),
-    ('Recursive + 2', ParseError('bad')),
-    ('50x(50d6)', ParseError('bad')),
+    ('10d6b7', 'ParseError'),
+    ('Recursive + 2', 'ParseError'),
+    ('50x(50d6)', 'ParseError'),
   ]
 
   for expr, expected in tests:
+    result_str = 'Error'
+    result_val = None
     try:
       result = ParseExpr(expr, sym, env)
+      result_val = result[0].value
+      result_str = '%s' % map(str, result)
     except ParseError, e:
-      result = e
-    print expr, map(str, result), expected
+      result_str = str(e)
+    status='FAIL'
+    if isinstance(expected, str):
+      if expected in result_str:
+        status='PASS'
+    else:
+      if result_val == expected:
+        status='PASS'
+    print status, expr, result_str, result_val, expected
 

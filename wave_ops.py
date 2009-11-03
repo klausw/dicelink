@@ -13,16 +13,6 @@ import roll
 
 #GADGET_URL='http://dicelink.appspot.com/static/counter.xml'
 
-def OnRobotAdded(properties, context):
-  """Invoked when the robot has been added."""
-  root_wavelet = context.GetRootWavelet()
-  blip = root_wavelet.CreateBlip()
-  doc = blip.GetDocument()
-  doc.SetText('DiceLink joined.')
-
-  #counter = document.Gadget(GADGET_URL)
-  #doc.AppendElement(counter)
-
 def GetBlipMapId(name):
   data = persist.GetBlipMap(name)
   logging.debug('GetBlipMapId: name="%s" data=%s' % (name, data))
@@ -49,7 +39,27 @@ def SetTextWithAttributes(doc, start, end, texts):
   return len(new_text) - old_len
 
 # End expression on end of line, or punctuation other than ','
-EXPR_RE = re.compile(r'((?: [A-Z] \w* \s*)+) : \s* ([^.;:?!]+)', re.X)
+EXPR_RE = re.compile(r'''
+  \[
+  (?: 
+    ([^]:]*)
+  : \s* )?
+  ([^]]*)
+  \]
+  ''', re.X)
+
+def OnRobotAdded(properties, context):
+  """Invoked when the robot has been added."""
+  root_wavelet = context.GetRootWavelet()
+  blip = root_wavelet.CreateBlip()
+  doc = blip.GetDocument()
+  SetTextWithAttributes(doc, 0, 0, [
+	  ['DiceLink joined. '],
+	  ['Privacy policy, Help', ('link/manual', 'https://wave.google.com/wave/#restored:wave:googlewave.com!w%252BeDRGxAAiN')],
+  ])
+
+  #counter = document.Gadget(GADGET_URL)
+  #doc.AppendElement(counter)
 
 def OnBlipSubmitted(properties, context):
   """Invoked when a blip was submitted."""
@@ -83,33 +93,51 @@ def OnBlipSubmitted(properties, context):
     char = charsheet.CharSheet(txt)
     persist.SaveBlipMap('char_%s' % char.name, blip.GetWaveId(), blip.GetWaveletId(), blip.GetId())
     persist.SaveSheet(char.name, str(char))
+    persist.SetDefaultChar(creator, char.name)
     SetStatus(context, 'Updated character %s' % char.name)
-  elif ':' in txt:
+  elif '[' in txt:
+    offset = 0
     for m in EXPR_RE.finditer(txt):
+      if '=' in m.group(2):
+        continue
       out_lst = []
+      char = None
+      charname = None
+      if m.group(1):
+	charname = m.group(1)
+      else:
+	charname = persist.GetDefaultChar(creator)
+      if charname:
+	char = charsheet.GetChar(charname)
+	if not char:
+	  out_lst.append(['"%s" not found' % charname, ('style/color', 'red')])
+
+      if char:
+	sym = char.dict
+      else:
+	sym = {}
+      env = {
+	'opt_nat20': True,
+	'opt_crit_notify': sym.get('CritNotify', 20),
+      }
       try:
-        char = charsheet.GetChar(m.group(1))
-	if char:
-	  sym = char.dict
-	else:
-	  sym = {}
-	env = {
-	  'opt_nat20': True,
-	  'opt_crit_notify': sym.get('CritNotify', 20),
-	}
         for result in eval.ParseExpr(m.group(2), sym, env):
 	  if out_lst:
 	    out_lst.append([', '])
 	  if 'Secret' in sym:
+	    out_lst.append(['='])
 	    out_lst.append([result.secretval(), ('style/fontWeight', 'bold')])
 	  else:
-	    out_lst.append(['%s=' % result.detail(), ('style/color', '#aa00ff')])
+	    out_lst.append([result.detail()+'=', ('style/color', '#aa00ff')])
 	    out_lst.append([result.publicval(), ('style/fontWeight', 'bold')])
       except eval.ParseError, e:
         out_lst.append([str(e), ('style/color', 'red')])
       if out_lst:
-	out_lst = [' '] + out_lst + [' ']
-	SetTextWithAttributes(doc, len(txt), len(txt), out_lst)
+	if char and not m.group(1):
+	  offset += SetTextWithAttributes(doc, m.start()+1+offset, m.start()+1+offset,
+	    [[char.name + ':']])
+	out_lst = [' '] + out_lst
+	offset += SetTextWithAttributes(doc, m.end(2)+offset, m.end(2)+offset, out_lst)
 #  elif ':' in txt:
 #    logging.debug('interact: %s' % txt)
 #    out_public, out_private = charsheet.Interact(txt)
@@ -145,9 +173,9 @@ def OnBlipSubmitted(properties, context):
       offset += SetTextWithAttributes(doc, match_start, match_end, [
 	[spec['spec'], ('style/color', '#aa00ff')],
 	['=%d' % num, ('style/fontWeight', 'bold')],
-	[' ['],
+	[' ('],
 	[detail, ('style/color', 'gray')],
-	[']'],
+	[')'],
       ])
       #out_private.append('%s rolled %s: %d [%s]' % (creator, spec['spec'], num, detail))
       #persist.SaveMsg(creator, 'rolled %s: %d [%s]' % (spec['spec'], num, detail))
