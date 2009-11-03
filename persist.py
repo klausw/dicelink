@@ -111,3 +111,37 @@ def GetDefaultChar(user):
     return entry.name
   else:
     return None
+
+class Characters(db.Model):
+  name = db.StringProperty(multiline=False)
+  owner = db.StringProperty(multiline=False)
+  wave = db.StringProperty(multiline=False)
+  wavelet = db.StringProperty(multiline=False)
+  blip = db.StringProperty(multiline=False)
+  text = db.TextProperty()
+
+def GetCharacter(name, owner, wave):
+  in_wave = Characters.all().filter('name =', name).filter('wave =', wave).fetch(1)
+  if in_wave:
+    return in_wave[0].text
+
+  by_owner = Characters.all().filter('name =', name).filter('owner =', owner).fetch(1)
+  if by_owner:
+    return by_owner[0].text
+
+  return None
+
+def SaveCharacter(name, owner, wave, wavelet, blip, text):
+  existing = Characters.all().filter('name =', name).filter('owner =', owner).filter('wave =', wave).fetch(1)
+  if existing:
+    char = existing[0]
+  else:
+    char = Characters()
+
+  char.name = name
+  char.owner = owner
+  char.wave = wave
+  char.wavelet = wavelet
+  char.blip = blip
+  char.text = text
+  char.put()

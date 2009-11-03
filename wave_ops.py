@@ -63,22 +63,26 @@ def OnRobotAdded(properties, context):
 
 def OnBlipSubmitted(properties, context):
   """Invoked when a blip was submitted."""
-  blip = context.GetBlipById(properties['blipId'])
+  blipId = properties['blipId']
+  blip = context.GetBlipById(blipId)
+  waveId = blip.GetWaveId()
+  waveletId = blip.GetWaveletId()
   creator = blip.GetCreator()
   doc = blip.GetDocument()
   txt = doc.GetText()
 
   def WaveCharacterSaver(sheet):
     name = sheet.name
-    waveId, waveletId, blipId = GetBlipMapId('char_%s' % name)
     logging.debug('WaveCharacterSaver: name="%s" blipId=%s', name, blipId)
-    persist.SaveSheet(name, str(sheet))
-    if blipId:
-      SetTextOfBlip(context, waveId, waveletId, blipId, str(sheet))
+    persist.SaveCharacter(name, creator, waveId, waveletId, blipId, str(sheet))
+    #if blipId:
+    #  SetTextOfBlip(context, waveId, waveletId, blipId, str(sheet))
 
   def WaveCharacterGetter(name):
     logging.debug('WaveCharacterGetter: name="%s"', name)
-    sheet_txt = persist.GetSheet(name)
+    sheet_txt = persist.GetCharacter(name, creator, waveId)
+    if not sheet_txt:
+      sheet_txt = persist.GetSheet(name) # backwards compatible
     if sheet_txt:
       return charsheet.CharSheet(sheet_txt)
     else:
@@ -87,14 +91,15 @@ def OnBlipSubmitted(properties, context):
   charsheet.SetCharacterAccessors(WaveCharacterGetter, WaveCharacterSaver)
   # update info from character sheets if present
   if 'dicelink: Status' in txt:
-    persist.SaveBlipMap('Status', blip.GetWaveId(), blip.GetWaveletId(), blip.GetId())
+    #persist.SaveBlipMap('Status', blip.GetWaveId(), blip.GetWaveletId(), blip.GetId())
+    pass
   elif charsheet.isCharSheet(txt):
     logging.debug('save char sheet, txt=%s, id=%s', txt, blip.GetId())
     char = charsheet.CharSheet(txt)
-    persist.SaveBlipMap('char_%s' % char.name, blip.GetWaveId(), blip.GetWaveletId(), blip.GetId())
-    persist.SaveSheet(char.name, str(char))
-    persist.SetDefaultChar(creator, char.name)
-    SetStatus(context, 'Updated character %s' % char.name)
+    if char:
+      char.save()
+      persist.SetDefaultChar(creator, char.name)
+      SetStatus(context, 'Updated character %s' % char.name)
   elif '[' in txt:
     offset = 0
     for m in EXPR_RE.finditer(txt):
