@@ -36,10 +36,10 @@ OBJECT_RE = re.compile(r'''
     (?: b (?P<limit> \d+ ) )? 
   ) |
   (?P<symbol>
-    [A-Z]\w+
+    [A-Za-z]\w*
     (?:
       \s+
-      [A-Z]\w+
+      [A-Za-z]\w*
     )*
   ) |
   (?P<number>

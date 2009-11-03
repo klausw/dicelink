@@ -110,11 +110,19 @@ class CharSheet(object):
 def isCharSheet(txt):
   return 'Name:' in txt
 
+COMMENT_RE = re.compile(r'#.*$', re.M)
+def replaceComment(str):
+  return ' ' * len(str.group(0))
 
-def itemsFromText(txt):
-  if not isCharSheet(txt):
+def itemsFromText(orig_txt):
+  if not isCharSheet(orig_txt):
     return
 
+  txt = orig_txt
+  # strip comments
+  txt = COMMENT_RE.sub(replaceComment, txt)
+
+  # save items and positions
   for m in ITEMS_RE.finditer(txt):
     start, end = m.start(1), m.end(2)
     key, value = m.groups()
@@ -213,6 +221,7 @@ if __name__ == '__main__':
   Deft Strike: D20+12 vs AC, Damage D4+4
   Piercing Strike: D20+12 vs Ref, Damage D4+4
   Sneak Attack: Damage 2D8+7
+  # Foo=1; HP: 0
 
   Notes go here.
   ''').save()
