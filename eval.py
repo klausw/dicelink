@@ -44,10 +44,13 @@ OBJECT_RE = re.compile(r'''
   ) |
   (?P<number>
     -?\d+
-  )
+  ) |
+  "(?P<string>
+    [^"]*
+  )"
 ''', re.X | re.I)
 
-PLUSMINUS_RE = re.compile(r'\s* ([-+]) \s*', re.X)
+PLUSMINUS_RE = re.compile(r'\s* ([-+])? \s*', re.X)
 
 def LookupSym(name, sym, skip_prefix):
   while True:
@@ -194,6 +197,9 @@ def ParseExpr(expr, sym, parent_env):
       if expansion is None:
         raise ParseError('Symbol "%s" not found' % matched)
       Add(ParseExpr(expansion, sym, env)[0], sign)
+    elif dict['string']:
+      # set flag, including double quotes
+      result[0].flags[matched] = True
     elif dict['func']:
       fname = dict['name']
       fexpr = dict['expr']
@@ -202,6 +208,13 @@ def ParseExpr(expr, sym, parent_env):
         Add(ParseExpr(fexpr, sym, DynEnv('max', True))[0], sign)
       elif fname == 'avg':
         Add(ParseExpr(fexpr, sym, DynEnv('avg', True))[0], sign)
+      elif fname == 'div':
+        numer, denom = fexpr.split(',')
+	numval = ParseExpr(numer, sym, env)[0]
+	denval = ParseExpr(denom, sym, env)[0]
+	Add(Result(int(numval.value) / int(denval.value),
+	  ['(%s)/%s' % (numval.detail(), denval.detail())], 
+	  numval.flags), sign)
       elif N_TIMES_RE.match(fname):
         ntimes = int(N_TIMES_RE.match(fname).group(1))
 	if ntimes > 100:
@@ -263,6 +276,9 @@ if __name__ == '__main__':
     ('max(3d6) + 3d6 + avg(3d6b3) + max(d8)', 50.5),
     ('12x(d20+7)', ''),
     ('3x(Deft Strike)', ''),
+    ('div(7, 2)', 3),
+    ('div(3d6+5, 2)', 9),
+    ('d20+5 "Prone"', 16),
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
     ('50x(50d6)', 'ParseError'),

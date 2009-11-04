@@ -32,13 +32,12 @@ def SetTextWithAttributes(doc, start, end, texts):
   new_text = ''.join([p[0] for p in texts])
   doc.SetTextInRange(document.Range(start, end), new_text)
   for lst in texts:
-    text = lst[0]
+    len_text = len(lst[0])
     for anno, val in lst[1:]:
-      doc.SetAnnotation(document.Range(start, start+len(text)), anno, val)
-    start += len(text)
+      doc.SetAnnotation(document.Range(start, start+len_text), anno, val)
+    start += len_text
   return len(new_text) - old_len
 
-# End expression on end of line, or punctuation other than ','
 EXPR_RE = re.compile(r'''
   \[
   (?: 
@@ -73,7 +72,7 @@ def OnBlipSubmitted(properties, context):
 
   def WaveCharacterSaver(sheet):
     name = sheet.name
-    logging.debug('WaveCharacterSaver: name="%s" blipId=%s', name, blipId)
+    #logging.debug('WaveCharacterSaver: name="%s" blipId=%s', name, blipId)
     persist.SaveCharacter(name, creator, waveId, waveletId, blipId, str(sheet))
     #if blipId:
     #  SetTextOfBlip(context, waveId, waveletId, blipId, str(sheet))
@@ -89,7 +88,7 @@ def OnBlipSubmitted(properties, context):
       return None
       
   charsheet.SetCharacterAccessors(WaveCharacterGetter, WaveCharacterSaver)
-  # update info from character sheets if present
+  # update info from character sheets if present - currently disabled
   if 'dicelink: Status' in txt:
     #persist.SaveBlipMap('Status', blip.GetWaveId(), blip.GetWaveletId(), blip.GetId())
     pass
@@ -126,6 +125,7 @@ def OnBlipSubmitted(properties, context):
 	'opt_crit_notify': sym.get('CritNotify', 20),
       }
       try:
+        logging.debug('eval: char="%s", expr="%s"', charname, m.group(2))
         for result in eval.ParseExpr(m.group(2), sym, env):
 	  if out_lst:
 	    out_lst.append([', '])
@@ -141,7 +141,7 @@ def OnBlipSubmitted(properties, context):
 	if char and not m.group(1):
 	  offset += SetTextWithAttributes(doc, m.start()+1+offset, m.start()+1+offset,
 	    [[char.name + ':']])
-	out_lst = [' '] + out_lst
+	out_lst = [[' ']] + out_lst
 	offset += SetTextWithAttributes(doc, m.end(2)+offset, m.end(2)+offset, out_lst)
 #  elif ':' in txt:
 #    logging.debug('interact: %s' % txt)
