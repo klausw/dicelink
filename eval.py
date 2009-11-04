@@ -50,6 +50,8 @@ OBJECT_RE = re.compile(r'''
   )"
 ''', re.X | re.I)
 
+INTERPOLATE_RE = re.compile(r'\{([^}]*)\}')
+
 PLUSMINUS_RE = re.compile(r'\s* ([-+])? \s*', re.X)
 
 def LookupSym(name, sym, skip_prefix):
@@ -75,14 +77,33 @@ MAX_ROLLS=2000
 MAX_OBJECTS = 900 # <1000, or Python breaks first on recursion
 
 class Result(object):
-  def __init__(self, value, details, flags):
+  def __init__(self, value, details, flags, is_constant=True, is_numeric=True):
     self.value = value
     self.details = details
+    self.is_constant = is_constant
+    self.is_numeric = is_numeric
+    if is_constant:
+      self.constant_sum = value
+    else:
+      self.constant_sum = 0
     self.flags = flags
   def detail(self):
-    return '+'.join(self.details).replace('--','').replace('+-', '-')
+    maybe_constant = []
+    if self.constant_sum != 0:
+      maybe_constant = [str(self.constant_sum)]
+    if not self.details:
+      return ''
+    return '+'.join(self.details + maybe_constant).replace('--','').replace('+-', '-')
+  def detail_paren(self):
+    if self.details:
+      return '(%s)' % self.detail()
+    else:
+      return '%s' % self.value
   def publicval(self):
-    return ':'.join([str(self.value)] + self.flags.keys())
+    maybe_value = []
+    if self.is_numeric:
+      maybe_value = [str(self.value)]
+    return ':'.join(maybe_value + self.flags.keys())
   def secretval(self):
     if 'Nat20' in self.flags:
       return 'Nat20'
@@ -124,7 +145,7 @@ def RollDice(num_dice, sides, env):
     {1:''}.get(num_dice, str(num_dice)),
     sides,
     ','.join(out))
-  return Result(result, [detail], flags)
+  return Result(result, [detail], flags, is_constant=False)
   
 
 N_TIMES_RE = re.compile(r'(\d+) x', re.X)
@@ -132,6 +153,7 @@ N_TIMES_RE = re.compile(r'(\d+) x', re.X)
 def ParseExpr(expr, sym, parent_env):
   # ignore Nx(...) for now
   result = [Result(0, [], {})]
+  result[0].is_numeric = False
 
   # Make a shallow copy of the environment so that changes from child calls don't
   # propagate back up unintentionally.
@@ -148,9 +170,15 @@ def ParseExpr(expr, sym, parent_env):
 
   def Add(new_result, sign):
     result[0].value += sign * new_result.value
-    if sign < 0:
-      new_result.details[0] = '-'+new_result.details[0]
-    result[0].details += new_result.details
+    result[0].constant_sum += sign * new_result.constant_sum
+    if new_result.is_numeric:
+      result[0].is_numeric = True
+    new_details = new_result.details
+    if sign < 0 and new_details:
+      new_details[0] = '-'+new_details[0]
+    if not new_result.is_constant:
+      result[0].details += new_details
+      result[0].is_constant = False
     for k, v in new_result.flags.iteritems():
       result[0].flags[k] = v
 
@@ -198,8 +226,11 @@ def ParseExpr(expr, sym, parent_env):
         raise ParseError('Symbol "%s" not found' % matched)
       Add(ParseExpr(expansion, sym, env)[0], sign)
     elif dict['string']:
+      def eval_string(match):
+        return str(ParseExpr(match.group(1), sym, env)[0].value)
       # set flag, including double quotes
-      result[0].flags[matched] = True
+      new_string = INTERPOLATE_RE.sub(eval_string, matched)
+      result[0].flags[new_string] = True
     elif dict['func']:
       fname = dict['name']
       fexpr = dict['expr']
@@ -212,9 +243,23 @@ def ParseExpr(expr, sym, parent_env):
         numer, denom = fexpr.split(',')
 	numval = ParseExpr(numer, sym, env)[0]
 	denval = ParseExpr(denom, sym, env)[0]
-	Add(Result(int(numval.value) / int(denval.value),
-	  ['(%s)/%s' % (numval.detail(), denval.detail())], 
-	  numval.flags), sign)
+	div_flags = numval.flags # ignoring denominator flags
+	if denval.value == 0:
+	  div_val = 0
+	  div_flags['DivideByZero'] = True
+	else:
+	  div_val = int(numval.value) / int(denval.value)
+	if numval.is_constant and denval.is_constant:
+	  div_detail = []
+	else:
+	  div_detail = ['%s/%s' % (numval.detail_paren(), denval.detail_paren())]
+	div_res = Result(div_val, div_detail, div_flags, 
+	                 is_constant=(numval.is_constant and denval.is_constant),
+			 is_numeric=(denval.value != 0))
+	Add(div_res, sign)
+      elif fname == 'bonus':
+        bonus_res = ParseExpr(fexpr, sym, env)[0]
+	Add(Result(bonus_res.constant_sum, [], {}), sign)
       elif N_TIMES_RE.match(fname):
         ntimes = int(N_TIMES_RE.match(fname).group(1))
 	if ntimes > 100:
@@ -238,6 +283,14 @@ if __name__ == '__main__':
     'Armor': '2',
     'NegArmor': '-2',
     'Trained': '5',
+    'Level': '3',
+    'HalfLevel': 'div(Level, 2)',
+    'Str': '18',
+    'StrMod': 'div(Str - 10, 2)',
+    'StrP': 'StrMod + HalfLevel',
+    'Enh': '2',
+    'Bash': 'd20 + StrP + Enh',
+    'Hometown': '"New York"',
   }
 
   sym_tests = [
@@ -268,17 +321,22 @@ if __name__ == '__main__':
     ('3d6', 8),
     ('12d6b2', 51),
     ('Deft Strike', 6),
-    ('Deft Strike + Sneak Attack + 2', 17),
+    ('Deft Strike + Sneak Attack + 2', '+13=17'),
     ('Deft Strike + -1', 5),
     ('Deft Strike - 1', 5),
     ('Deft Strike - 2d4', -1),
     ('max(Deft Strike+Sneak Attack) + 4d10', 45),
     ('max(3d6) + 3d6 + avg(3d6b3) + max(d8)', 50.5),
-    ('12x(d20+7)', ''),
+    ('12x(Bash)', ''),
     ('3x(Deft Strike)', ''),
     ('div(7, 2)', 3),
     ('div(3d6+5, 2)', 9),
     ('d20+5 "Prone"', 16),
+    ('42 "Push {StrMod} squares"', 42),
+    ('Bash', 24),
+    ('bonus(Bash)', 7),
+    ('Hometown', '="New York"'),
+    ('div(Bash, 0)', '/0=DivideByZero'),
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
     ('50x(50d6)', 'ParseError'),
@@ -290,15 +348,21 @@ if __name__ == '__main__':
     try:
       result = ParseExpr(expr, sym, env)
       result_val = result[0].value
-      result_str = '%s' % map(str, result)
+      if len(result) == 1:
+        result_str = str(result[0])
+      else:
+	result_str = '%s' % map(str, result)
     except ParseError, e:
       result_str = str(e)
     status='FAIL'
     if isinstance(expected, str):
       if expected in result_str:
-        status='PASS'
+        status='pass'
     else:
       if result_val == expected:
-        status='PASS'
-    print status, expr, result_str, result_val, expected
+        status='pass'
+    if status == 'FAIL':
+      print status, expr, result_str, '# got %s, expected %s' % (repr(result_str), result_val, repr(expected))
+    else:
+      print status, expr, result_str
 
