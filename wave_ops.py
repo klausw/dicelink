@@ -102,7 +102,7 @@ def OnBlipSubmitted(properties, context):
   elif '[' in txt:
     offset = 0
     for m in EXPR_RE.finditer(txt):
-      if '=' in m.group(2):
+      if '=' in m.group(2) or 'ParseError' in m.group():
         continue
       out_lst = []
       char = None
