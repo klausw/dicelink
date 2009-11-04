@@ -8,7 +8,7 @@ import roll
 ITEMS_RE=re.compile(r'''
   \s*
   (
-    [a-z][-\w ]*
+    [_a-z][-\w ]*
   )
   :
   \s*

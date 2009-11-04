@@ -120,9 +120,14 @@ def OnBlipSubmitted(properties, context):
 	sym = char.dict
       else:
 	sym = {}
+      if '_template' in sym:
+        template = charsheet.GetChar(sym['_template'].replace('"', ''))
+	if template:
+	  for k, v in template.dict.iteritems():
+	    sym.setdefault(k, v)
       env = {
 	'opt_nat20': True,
-	'opt_crit_notify': sym.get('CritNotify', 20),
+	'opt_crit_notify': sym.get('_critNotify', sym.get('CritNotify', 20)),
       }
       try:
         logging.debug('eval: char="%s", expr="%s"', charname, m.group(2))
