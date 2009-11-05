@@ -239,11 +239,26 @@ def ParseExpr(expr, sym, parent_env):
         Add(ParseExpr(fexpr, sym, DynEnv('max', True))[0], sign)
       elif fname == 'avg':
         Add(ParseExpr(fexpr, sym, DynEnv('avg', True))[0], sign)
+      elif fname == 'mul':
+        mul_a, mul_b = fexpr.split(',')
+	val_a = ParseExpr(mul_a, sym, env)[0]
+	val_b = ParseExpr(mul_b, sym, env)[0]
+	mul_flags = val_a.flags
+	mul_flags.update(val_b.flags)
+	mul_val = val_a.value * val_b.value
+	if val_a.is_constant and val_b.is_constant:
+	  mul_detail = []
+	else:
+	  mul_detail = ['%s*%s' % (val_a.detail_paren(), val_b.detail_paren())]
+	mul_res = Result(mul_val, mul_detail, mul_flags,
+	                 is_constant=(val_a.is_constant and val_b.is_constant))
+	Add(mul_res, sign)
       elif fname == 'div':
         numer, denom = fexpr.split(',')
 	numval = ParseExpr(numer, sym, env)[0]
 	denval = ParseExpr(denom, sym, env)[0]
-	div_flags = numval.flags # ignoring denominator flags
+	div_flags = numval.flags
+	div_flags.update(denval.flags)
 	if denval.value == 0:
 	  div_val = 0
 	  div_flags['DivideByZero'] = True
@@ -337,6 +352,8 @@ if __name__ == '__main__':
     ('bonus(Bash)', 7),
     ('Hometown', '="New York"'),
     ('div(Bash, 0)', '/0=DivideByZero'),
+    ('mul(Level, 2)', 6),
+    ('mul(d6, d10)', 30),
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
     ('50x(50d6)', 'ParseError'),
