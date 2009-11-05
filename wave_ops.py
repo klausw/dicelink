@@ -121,10 +121,13 @@ def OnBlipSubmitted(properties, context):
       else:
 	sym = {}
       if '_template' in sym:
-        template = charsheet.GetChar(sym['_template'].replace('"', ''))
+        template_name = sym['_template'].replace('"', '').strip()
+        template = charsheet.GetChar(template_name)
 	if template:
+	  logging.debug('Using template "%s" for "%s"' % (template.name, char.name))
 	  for k, v in template.dict.iteritems():
 	    sym.setdefault(k, v)
+	logging.debug('template "%s" for "%s" not found' % (template_name, char.name))
       env = {
 	'opt_nat20': True,
 	'opt_crit_notify': sym.get('_critNotify', sym.get('CritNotify', 20)),
@@ -134,7 +137,7 @@ def OnBlipSubmitted(properties, context):
         for result in eval.ParseExpr(m.group(2), sym, env):
 	  if out_lst:
 	    out_lst.append([', '])
-	  if 'Secret' in sym:
+	  if '_secret' in sym or 'Secret' in sym:
 	    out_lst.append(['='])
 	    out_lst.append([result.secretval(), ('style/fontWeight', 'bold')])
 	  else:
