@@ -71,7 +71,7 @@ def OnBlipSubmitted(properties, context):
   doc = blip.GetDocument()
   txt = doc.GetText()
 
-  logging.info('%s: "%s" (%s %s %s)' % (waveId, txt, modifier, blipId, waveletId))
+  logging.info('%s %s %s %s %s' % (waveId, modifier, len(txt), blipId, waveletId))
 
   def WaveCharacterSaver(sheet):
     name = sheet.name
