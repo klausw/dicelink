@@ -122,12 +122,13 @@ def OnBlipSubmitted(properties, context):
 	char = charsheet.GetChar(charname)
 	if not char:
 	  out_lst.append(['"%s" not found' % charname, ('style/color', 'red')])
+        else:
+	  log_info.append('Char "%s" (%d),' % (charname, len(char.dict)))
 
       if char:
 	sym = char.dict
       else:
 	sym = {}
-      log_info.append('Char "%s" (%d),' % (charname, len(char.dict)))
       if '_template' in sym:
         template_name = sym['_template'].replace('"', '').strip()
         template = charsheet.GetChar(template_name)
