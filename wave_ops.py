@@ -67,8 +67,11 @@ def OnBlipSubmitted(properties, context):
   waveId = blip.GetWaveId()
   waveletId = blip.GetWaveletId()
   creator = blip.GetCreator()
+  modifier = properties.get('modifiedBy', creator) # hacked waveapi
   doc = blip.GetDocument()
   txt = doc.GetText()
+
+  logging.info('%s: "%s" (modifier %s, creator %s, blip %s, wavelet %s)' % (waveId, txt, modifier, creator, blipId, waveletId))
 
   def WaveCharacterSaver(sheet):
     name = sheet.name
@@ -100,6 +103,9 @@ def OnBlipSubmitted(properties, context):
       persist.SetDefaultChar(creator, char.name)
       SetStatus(context, 'Updated character %s' % char.name)
   elif '[' in txt:
+    if modifier != creator:
+      logging.info('Not evaluating, modifier "%s" != creator "%s"' % (modifier, creator))
+      return
     offset = 0
     log_info = []
     for m in EXPR_RE.finditer(txt):
