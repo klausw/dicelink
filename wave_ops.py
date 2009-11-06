@@ -143,6 +143,8 @@ def OnBlipSubmitted(properties, context):
         for result in eval.ParseExpr(expr, sym, env):
 	  if out_lst:
 	    out_lst.append([', '])
+	  else:
+	    log_info.append(repr(result.stats))
 	  detail=''
 	  value=''
 	  if '_secret' in sym or 'Secret' in sym:
@@ -153,7 +155,7 @@ def OnBlipSubmitted(properties, context):
 	    value = result.publicval()
 	  out_lst.append([detail+'=', ('style/color', '#aa00ff')])
 	  out_lst.append([value, ('style/fontWeight', 'bold')])
-	  log_info.append('%s=%s %s' % (detail, value, repr(result.stats)))
+	  log_info.append('%s=%s' % (detail, value))
       except eval.ParseError, e:
         out_lst.append([str(e), ('style/color', 'red')])
 	log_info.append(str(e))
