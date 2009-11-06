@@ -1,6 +1,11 @@
 import random
 import re
 
+# TODO:
+# explode(dice): dice + explode(roll(count(>=6, dice), 6))
+#
+# support Name: "My Name" with quotes
+
 # Expression evaluator
 #
 # Intent is to have intuitive behavior, and lightweight syntax that doesn't
@@ -286,6 +291,7 @@ def ParseExpr(expr, sym, parent_env):
 
     start += m.end()
 
+  result[0].stats = env['stats']
   return result
 
 if __name__ == '__main__':

@@ -101,6 +101,7 @@ def OnBlipSubmitted(properties, context):
       SetStatus(context, 'Updated character %s' % char.name)
   elif '[' in txt:
     offset = 0
+    log_info = []
     for m in EXPR_RE.finditer(txt):
       if '=' in m.group(2) or 'ParseError' in m.group():
         continue
@@ -120,6 +121,7 @@ def OnBlipSubmitted(properties, context):
 	sym = char.dict
       else:
 	sym = {}
+      log_info.append('Char "%s" (%d),' % (charname, len(char.dict)))
       if '_template' in sym:
         template_name = sym['_template'].replace('"', '').strip()
         template = charsheet.GetChar(template_name)
@@ -127,24 +129,35 @@ def OnBlipSubmitted(properties, context):
 	  logging.debug('Using template "%s" for "%s"' % (template.name, char.name))
 	  for k, v in template.dict.iteritems():
 	    sym.setdefault(k, v)
-	logging.debug('template "%s" for "%s" not found' % (template_name, char.name))
+	  log_info.append('template "%s" (%d),' % (template_name, len(template.dict)))
+	else:
+	  logging.debug('template "%s" for "%s" not found' % (template_name, char.name))
       env = {
 	'opt_nat20': True,
 	'opt_crit_notify': sym.get('_critNotify', sym.get('CritNotify', 20)),
       }
       try:
-        logging.debug('eval: char="%s", expr="%s"', charname, m.group(2))
-        for result in eval.ParseExpr(m.group(2), sym, env):
+	expr = m.group(2)
+        logging.debug('eval: char="%s", expr="%s"', charname, expr)
+	log_info.append('"%s":' % expr)
+        for result in eval.ParseExpr(expr, sym, env):
 	  if out_lst:
 	    out_lst.append([', '])
+	  detail=''
+	  value=''
 	  if '_secret' in sym or 'Secret' in sym:
-	    out_lst.append(['='])
+	    value = result.secretval()
 	    out_lst.append([result.secretval(), ('style/fontWeight', 'bold')])
 	  else:
-	    out_lst.append([result.detail()+'=', ('style/color', '#aa00ff')])
-	    out_lst.append([result.publicval(), ('style/fontWeight', 'bold')])
+	    detail = result.detail()
+	    value = result.publicval()
+	  out_lst.append([detail+'=', ('style/color', '#aa00ff')])
+	  out_lst.append([value, ('style/fontWeight', 'bold')])
+	  log_info.append('%s=%s %s' % (detail, value, repr(result.stats)))
       except eval.ParseError, e:
         out_lst.append([str(e), ('style/color', 'red')])
+	log_info.append(str(e))
+      logging.info(' '.join(log_info))
       if out_lst:
 	if char and not m.group(1):
 	  offset += SetTextWithAttributes(doc, m.start()+1+offset, m.start()+1+offset,
