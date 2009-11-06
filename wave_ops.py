@@ -96,12 +96,12 @@ def OnBlipSubmitted(properties, context):
     #persist.SaveBlipMap('Status', blip.GetWaveId(), blip.GetWaveletId(), blip.GetId())
     pass
   elif charsheet.isCharSheet(txt):
-    logging.debug('save char sheet, txt=%s, id=%s', txt, blip.GetId())
     char = charsheet.CharSheet(txt)
     if char:
+      logging.info('save char sheet, name="%s", keys=%d, bytes=%d', char.name, len(char.dict), len(txt))
       char.save()
       persist.SetDefaultChar(creator, char.name)
-      SetStatus(context, 'Updated character %s' % char.name)
+      #SetStatus(context, 'Updated character %s' % char.name)
   elif '[' in txt:
     if modifier != creator:
       logging.info('Not evaluating, modifier "%s" != creator "%s"' % (modifier, creator))
@@ -203,6 +203,7 @@ def OnBlipSubmitted(properties, context):
     offset = 0
     for spec in roll.GetRollMatches(txt):
       num, detail = roll.RollDice(spec)
+      logging.info('inline: %s=%s (%s)', spec['spec'], num, detail)
       match_start = spec['start'] + offset
       match_end = spec['end'] + offset
       offset += SetTextWithAttributes(doc, match_start, match_end, [
