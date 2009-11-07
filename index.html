@@ -1,5 +1,6 @@
 <html>
   <body onload="document.roll.content.focus()">
+    {{ title }}
     {% for msg in msgs %}
       {{ msg.date }}
       <b>{{ msg.author }}:</b>
@@ -13,6 +14,7 @@
       Roll: <input type="text" name="content">
       <input type="submit" value="Send">
     </form>
+    <a href="/static/help.html">Help</a>
     <a href="{{ url }}">{{ url_linktext }}</a>
 
   </body>

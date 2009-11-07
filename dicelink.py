@@ -18,6 +18,8 @@ import persist
 
 FROM_FULL_URL_RE = re.compile(r'restored:wave:([^,]*)')
 
+ANON_CAMPAIGN = 'Anonymous'
+
 def canonical_campaign(campaign):
   m = FROM_FULL_URL_RE.search(campaign)
   if m:
@@ -31,16 +33,16 @@ def canonical_campaign(campaign):
 class MainPage(webapp.RequestHandler):
   def get(self):
     if users.get_current_user():
-      url = users.create_logout_url(self.request.uri)
+      url = users.create_logout_url('/')
       url_linktext = 'Logout'
       is_logged_in = True
+      campaign = self.request.get('campaign', ANON_CAMPAIGN) 
+      campaign = canonical_campaign(campaign)
     else:
       url = users.create_login_url(self.request.uri)
       url_linktext = 'Login'
       is_logged_in = False
-
-    campaign = self.request.get('campaign', 'None')
-    campaign = canonical_campaign(campaign)
+      campaign = ANON_CAMPAIGN
 
     try:
       msgs_query = persist.Msg.all().filter('group =', campaign)
@@ -49,7 +51,12 @@ class MainPage(webapp.RequestHandler):
       logging.warning('Got exception: %s', e)
       msgs = []
 
+    title = ''
+    if campaign != ANON_CAMPAIGN:
+      title = '<h1>Campaign: %s</h1>' % campaign
+
     template_values = {
+      'title': title,
       'msgs': msgs,
       'url': url,
       'url_linktext': url_linktext,
@@ -73,7 +80,7 @@ class Roll(webapp.RequestHandler):
       user = 'Anonymous'
       email = 'Anonymous@example.com'
     content = self.request.get('content')
-    campaign = self.request.get('campaign', 'None')
+    campaign = self.request.get('campaign', ANON_CAMPAIGN)
     campaign = canonical_campaign(campaign)
 
     if not '[' in content:
@@ -111,7 +118,7 @@ class Roll(webapp.RequestHandler):
     persist.SaveMsg(user, out_msg[0], campaign)
 
     dest_url = '/'
-    if campaign and campaign != 'None':
+    if campaign and campaign != ANON_CAMPAIGN:
       dest_url += '?campaign=' + urllib.quote_plus(campaign)
     self.redirect(dest_url)
 
