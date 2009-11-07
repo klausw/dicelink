@@ -4,8 +4,6 @@ import logging
 
 from google.appengine.ext import db
 
-import roll
-
 ### Data model
 #
 # Record sheets canonically live in the DB. Each sheet has a user-assiged
@@ -58,18 +56,12 @@ import roll
 
 class Msg(db.Model):
   author = db.StringProperty()
-  content = db.StringProperty(multiline=False)
+  content = db.TextProperty()
+  group = db.StringProperty(multiline=False)
   date = db.DateTimeProperty(auto_now_add=True)
 
-def SaveMsg(user, text):
-  Msg(author=user, content=text).put()
-
-def SaveNewRolls(user, text):
-  out=[]
-  for spec in roll.GetRollMatches(text):
-    num, details = roll.RollDice(spec)
-    out.append('rolled %s=%d [%s]' % (spec['spec'], num, details))
-  SaveMsg(user, '; '.join(out))
+def SaveMsg(user, text, group=''):
+  Msg(author=user, content=text, group=group).put()
 
 class BlipMap(db.Model):
   wave = db.StringProperty(multiline=False)
@@ -119,6 +111,7 @@ class Characters(db.Model):
   wavelet = db.StringProperty(multiline=False)
   blip = db.StringProperty(multiline=False)
   text = db.TextProperty()
+  date = db.DateTimeProperty(auto_now_add=True)
 
 def GetCharacter(name, owner, wave):
   in_wave = Characters.all().filter('name =', name).filter('wave =', wave).fetch(1)

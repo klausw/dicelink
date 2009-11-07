@@ -1,14 +1,18 @@
 <html>
-  <body>
+  <body onload="document.roll.content.focus()">
     {% for msg in msgs %}
+      {{ msg.date }}
       <b>{{ msg.author }}:</b>
-      {{ msg.content|escape }}<br />
+      {{ msg.content }}<br />
     {% endfor %}
 
-    <form action="/roll" method="post">
-      <div><input type="text" name="content"><input type="submit" value="Roll"></div>
+    <form action="/roll" name="roll" method="post">
+    {% if is_logged_in %}
+      Campaign: <input type="text" name="campaign" value="{{ campaign }}">
+    {% endif %}
+      Roll: <input type="text" name="content">
+      <input type="submit" value="Send">
     </form>
-
     <a href="{{ url }}">{{ url_linktext }}</a>
 
   </body>

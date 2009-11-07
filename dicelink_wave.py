@@ -6,7 +6,7 @@ from waveapi import robot
 import config
 import wave_ops
 
-VERSION='13'
+VERSION='14'
 
 if __name__ == '__main__':
   myRobot = robot.Robot(config.getConfig('Name', 'dicelink'),

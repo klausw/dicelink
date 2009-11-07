@@ -45,7 +45,6 @@ class UnresolvedException(Exception):
   def __str__(self):
     return 'Unresolved: %s' % msg
 
-
 def GetChar(name):
   return character_getter(name)
 
@@ -62,7 +61,7 @@ class CharSheet(object):
       self.keys.append(key)
       self.span[key] = (start, end)
       self.dict[key] = value
-    self.name = self.dict['Name']
+    self.name = self.dict.get('Name', '')
 
   def save(self):
     character_setter(self)

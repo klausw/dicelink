@@ -3,8 +3,8 @@ import re
 
 # TODO:
 # explode(dice): dice + explode(roll(count(>=6, dice), 6))
-#
 # support Name: "My Name" with quotes
+# treat &gt; &lt; &amp; as operator synonyms to support encoded input?
 
 # Expression evaluator
 #
