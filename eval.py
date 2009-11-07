@@ -155,6 +155,63 @@ def RollDice(num_dice, sides, env):
 
 N_TIMES_RE = re.compile(r'(\d+) x', re.X)
 
+def DynEnv(env, key, val):
+  # shallow copy, so that stats remains shared
+  env_copy = env.copy()
+  env_copy[key] = val
+  return env_copy
+
+def fn_max(fexpr, sym, env):
+  return ParseExpr(fexpr, sym, DynEnv(env, 'max', True))[0]
+
+def fn_avg(fexpr, sym, env):
+  return ParseExpr(fexpr, sym, DynEnv(env, 'avg', True))[0]
+
+def fn_mul(fexpr, sym, env):
+  mul_a, mul_b = fexpr.split(',')
+  val_a = ParseExpr(mul_a, sym, env)[0]
+  val_b = ParseExpr(mul_b, sym, env)[0]
+  mul_flags = val_a.flags
+  mul_flags.update(val_b.flags)
+  mul_val = val_a.value * val_b.value
+  if val_a.is_constant and val_b.is_constant:
+    mul_detail = []
+  else:
+    mul_detail = ['%s*%s' % (val_a.detail_paren(), val_b.detail_paren())]
+  return Result(mul_val, mul_detail, mul_flags,
+                is_constant=(val_a.is_constant and val_b.is_constant))
+  
+def fn_div(fexpr, sym, env):
+  numer, denom = fexpr.split(',')
+  numval = ParseExpr(numer, sym, env)[0]
+  denval = ParseExpr(denom, sym, env)[0]
+  div_flags = numval.flags
+  div_flags.update(denval.flags)
+  if denval.value == 0:
+    div_val = 0
+    div_flags['DivideByZero'] = True
+  else:
+    div_val = int(numval.value) / int(denval.value)
+  if numval.is_constant and denval.is_constant:
+    div_detail = []
+  else:
+    div_detail = ['%s/%s' % (numval.detail_paren(), denval.detail_paren())]
+  return Result(div_val, div_detail, div_flags, 
+        	is_constant=(numval.is_constant and denval.is_constant),
+		is_numeric=(denval.value != 0))
+
+def fn_bonus(fexpr, sym, env):
+  bonus_res = ParseExpr(fexpr, sym, env)[0]
+  return Result(bonus_res.constant_sum, [], {})
+
+FUNCTIONS = {
+  'max': fn_max,
+  'avg': fn_avg,
+  'mul': fn_mul,
+  'div': fn_div,
+  'bonus': fn_bonus,
+}
+
 def ParseExpr(expr, sym, parent_env):
   # ignore Nx(...) for now
   result = [Result(0, [], {})]
@@ -166,12 +223,6 @@ def ParseExpr(expr, sym, parent_env):
 
   if not 'stats' in env:
     env['stats'] = {'rolls': 0, 'objects': 0}
-
-  def DynEnv(key, val):
-    # shallow copy, so that stats remains shared
-    env_copy = env.copy()
-    env_copy[key] = val
-    return env_copy
 
   def Add(new_result, sign):
     result[0].value += sign * new_result.value
@@ -222,7 +273,7 @@ def ParseExpr(expr, sym, parent_env):
       limit = int(GetNotNone(dict, 'limit', env.get('reroll_limit', 1)))
       Add(RollDice(int(GetNotNone(dict, 'num_dice', 1)),
 	            int(GetNotNone(dict, 'sides', 1)),
-		    DynEnv('reroll_limit', limit)), sign)
+		    DynEnv(env, 'reroll_limit', limit)), sign)
     elif dict['number']:
       Add(Result(int(matched), [matched], {}), sign)
     elif dict['symbol']:
@@ -240,46 +291,9 @@ def ParseExpr(expr, sym, parent_env):
       fname = dict['name']
       fexpr = dict['expr']
       # print 'fexpr=%s' % fexpr
-      if fname == 'max':
-        Add(ParseExpr(fexpr, sym, DynEnv('max', True))[0], sign)
-      elif fname == 'avg':
-        Add(ParseExpr(fexpr, sym, DynEnv('avg', True))[0], sign)
-      elif fname == 'mul':
-        mul_a, mul_b = fexpr.split(',')
-	val_a = ParseExpr(mul_a, sym, env)[0]
-	val_b = ParseExpr(mul_b, sym, env)[0]
-	mul_flags = val_a.flags
-	mul_flags.update(val_b.flags)
-	mul_val = val_a.value * val_b.value
-	if val_a.is_constant and val_b.is_constant:
-	  mul_detail = []
-	else:
-	  mul_detail = ['%s*%s' % (val_a.detail_paren(), val_b.detail_paren())]
-	mul_res = Result(mul_val, mul_detail, mul_flags,
-	                 is_constant=(val_a.is_constant and val_b.is_constant))
-	Add(mul_res, sign)
-      elif fname == 'div':
-        numer, denom = fexpr.split(',')
-	numval = ParseExpr(numer, sym, env)[0]
-	denval = ParseExpr(denom, sym, env)[0]
-	div_flags = numval.flags
-	div_flags.update(denval.flags)
-	if denval.value == 0:
-	  div_val = 0
-	  div_flags['DivideByZero'] = True
-	else:
-	  div_val = int(numval.value) / int(denval.value)
-	if numval.is_constant and denval.is_constant:
-	  div_detail = []
-	else:
-	  div_detail = ['%s/%s' % (numval.detail_paren(), denval.detail_paren())]
-	div_res = Result(div_val, div_detail, div_flags, 
-	                 is_constant=(numval.is_constant and denval.is_constant),
-			 is_numeric=(denval.value != 0))
-	Add(div_res, sign)
-      elif fname == 'bonus':
-        bonus_res = ParseExpr(fexpr, sym, env)[0]
-	Add(Result(bonus_res.constant_sum, [], {}), sign)
+      fn = FUNCTIONS.get(fname, None)
+      if fn:
+        Add(fn(fexpr, sym, env), sign)
       elif N_TIMES_RE.match(fname):
         ntimes = int(N_TIMES_RE.match(fname).group(1))
 	if ntimes > 100:
