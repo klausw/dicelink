@@ -64,6 +64,9 @@ def OnBlipSubmitted(properties, context):
   """Invoked when a blip was submitted."""
   blipId = properties['blipId']
   blip = context.GetBlipById(blipId)
+  if not blip:
+    logging.warning('Blip "%s" not found in context: %s' % (blipId, repr(context)))
+    return
   waveId = blip.GetWaveId()
   waveletId = blip.GetWaveletId()
   creator = blip.GetCreator()
