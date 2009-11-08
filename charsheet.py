@@ -1,6 +1,7 @@
 import random
 import re
 
+import eval
 import roll
 
 # Name: Value
@@ -8,7 +9,7 @@ import roll
 ITEMS_RE=re.compile(r'''
   \s*
   (
-    [_a-z][-\w ]*
+    [(]?[_a-z][-\w (),]*
   )
   :
   \s*
@@ -48,6 +49,7 @@ class UnresolvedException(Exception):
 def GetChar(name):
   return character_getter(name)
 
+PROTOTYPE_RE = re.compile(r'\s* \( \s* (.*?) \s* \) \s*', re.X)
 
 class CharSheet(object):
   def __init__(self, txt):
@@ -58,6 +60,22 @@ class CharSheet(object):
     for start, end, key, value in itemsFromText(txt):
       if NUMBER_RE.match(value):
         value = int(value)
+      elif '(' in key:
+        fname = ''
+	args = []
+	fidx = 0
+        for nm in PROTOTYPE_RE.finditer(key):
+	  fname += key[fidx:nm.start()]
+	  for arg in nm.group(1).split(','):
+	    arg = arg.strip()
+	    args.append(arg)
+	    fname += '$'
+	  fidx = nm.end()
+	fname += key[fidx:]
+	#print 'function definition: fname="%s" args=%s' % (fname, repr(args))
+        key = fname
+	value = eval.Function(args, value)
+
       self.keys.append(key)
       self.span[key] = (start, end)
       self.dict[key] = value

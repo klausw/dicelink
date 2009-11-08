@@ -1,5 +1,6 @@
 import cgi
 import logging
+import random
 import re
 
 import charsheet
@@ -86,3 +87,71 @@ def handle_expr(char, expr):
     log_info.append(str(e))
   logging.info(' '.join(log_info))
   return out_lst
+
+if __name__ == '__main__':
+  random.seed(2) # specially picked, first d20 gets a 20
+  logging.getLogger().setLevel(logging.DEBUG)
+
+  charsheet.SetCharacterAccessors(charsheet.GetInMemoryCharacter, charsheet.SaveInMemoryCharacter)
+
+  charsheet.CharSheet('''
+    Name: Test
+    Attack: d20 + 5
+    e(NumDice, TN): count(>= TN, explode(d(NumDice, 6)))
+    (NumDice)e(TN): count(>= TN, explode(d(NumDice, 6)))
+    fact(n): if(n <= 1, n, mul(n, fact(n - 1)))
+    fib(n): if(or(n==0, n==1), n, fib(n-1) + fib(n-2))
+    BW(Dice, TN): "NotImplemented"
+    SpecialResult(n): if(or(n<=8, n>=12), n "Nothing", if(or(n==9, n==12), n "Special Hit", n "Hit"))
+    SpecialHit: SpecialResult(3d6)
+  ''').save()
+
+  charsheet.CharSheet('''
+    Name: D20Template
+
+    Strength: "UndefinedStrength" # Notify user if they forgot to override it
+    StrMod: div(Strength - 10, 2)
+    JumpSkill: 0 # Default used when the user doesn't override it
+    Jump: d20 + JumpSkill + StrMod
+    Speed: 6
+  ''').save()
+  
+  charsheet.CharSheet('''
+    Name: Warrior
+    _template: "D20Template" # Import
+    Strength: 18 # Override the template's value
+    Axe: d12 + StrMod # Can refer to values from the template
+  ''').save()
+
+  tests = [
+    '[Warrior: Axe]',
+    '[Warrior: Speed]',
+    '[Warrior: Jump]',
+    '[Warrior: bonus(Jump)]',
+    '[D20Template: Speed]',
+    '[D20Template: Jump]',
+    'Roll [Attack]', 
+    'What is [fib(7)]?',
+    '[fact(50)]',
+    '[20e5]',
+    '[e(10, 5)]',
+    '[10x(SpecialHit)]',
+  ]
+  
+  for input in tests:
+    out_msg = [input]
+ 
+    def defaultgetter():
+      return 'Test'
+
+    def replacer(start, end, texts):
+      new = out_msg[0][:start]
+      for rtxt in texts:
+	new += rtxt[0]
+      new += out_msg[0][end:]
+      out_msg[0] = new
+      return len(new) - (end - start)
+
+    handle_text(input, defaultgetter, replacer)
+    print out_msg[0]
+

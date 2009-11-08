@@ -1,5 +1,7 @@
+import logging
 import random
 import re
+import sys
 
 # TODO:
 # explode(dice): dice + explode(roll(count(>=6, dice), 6))
@@ -31,7 +33,7 @@ OBJECT_RE = re.compile(r'''
       \w+
     )
     \(
-      (?P<expr> [^)]* )
+      (?P<expr> .* )
     \)
   ) |
   (?P<dice>
@@ -41,7 +43,7 @@ OBJECT_RE = re.compile(r'''
     (?: b (?P<limit> \d+ ) )? 
   ) |
   (?P<symbol>
-    [_A-Za-z]\w*
+    \w*[_A-Za-z]\w*
     (?:
       \s+
       [_A-Za-z]\w*
@@ -54,6 +56,8 @@ OBJECT_RE = re.compile(r'''
     [^"]*
   )"
 ''', re.X | re.I)
+
+NUMBER_RE = re.compile(r'\d+')
 
 INTERPOLATE_RE = re.compile(r'\{([^}]*)\}')
 
@@ -117,28 +121,79 @@ class Result(object):
   def __str__(self):
     return self.detail() + '=' + self.publicval()
 
+def never(x):
+  return False
+
 def RollDice(num_dice, sides, env):
-  reroll_limit = env.get('reroll_limit', 1)
-  out = []
+  reroll_if = env.get('reroll_if', never)
   result = 0
   flags={}
+  dice = []
+  details = []
   for i in xrange(num_dice):
     rolls = []
+    this_die = 0
     while True:
       env['stats']['rolls'] += 1
       if env['stats']['rolls'] > MAX_ROLLS:
         raise ParseError('Max number of die rolls exceeded')
       if 'max' in env:
-	roll = sides
+	this_die = sides
+	rolls.append(this_die)
+	break
       elif 'avg' in env:
-        roll = (sides + reroll_limit) / 2.0
+        if reroll_if != never:
+	  total = 0.0
+	  valid = 0
+	  for i in xrange(1, sides+1):
+	    if not reroll_if(i):
+	      total += i
+	      valid += 1
+	  this_die = total / valid
+	else:
+	  this_die = (sides + 1) / 2.0
+
+        if 'explode' in env:
+	  if reroll_if != never:
+	    flags['NotImplemented'] = True
+	  this_die *= sides / (sides - 1.0)
+        rolls.append(this_die)
+	break
       else:
 	roll = random.randint(1, sides)
-      rolls.append(str(roll))
-      if roll >= reroll_limit:
-	result += roll
-	out.append('\\'.join(rolls))
+      rolls.append(roll)
+      if 'explode' in env:
+	this_die += roll
+        if roll < sides:
+	  break
+      elif not(reroll_if(roll)):
+	this_die = roll
 	break
+    # Collect results for one component die roll
+    dice.append(this_die)
+
+    if 'explode' in env:
+      txt = str(this_die) + '!' * (len(rolls)-1)
+      details.append(txt)
+    else:
+      details.append('\\'.join(map(str, rolls)))
+  if 'count' in env:
+    predicate = env['count']
+    for die in dice:
+      if predicate(die):
+	result += 1
+  elif 'take_highest' in env:
+    result = max(dice)
+    for idx, val in enumerate(dice):
+      if val == result:
+        details[idx] = '=>' + details[idx]
+  elif 'take_lowest' in env:
+    result = min(dice)
+    for idx, val in enumerate(dice):
+      if val == result:
+        details[idx] = '=>' + details[idx]
+  else:
+    result = sum(dice)
   # Special cases for D&D-style d20 rolls
   if sides==20 and num_dice==1:
     if 'opt_nat20' in env and result==20:
@@ -149,7 +204,7 @@ def RollDice(num_dice, sides, env):
   detail = '%sd%d(%s)' % (
     {1:''}.get(num_dice, str(num_dice)),
     sides,
-    ','.join(out))
+    ','.join(details))
   return Result(result, [detail], flags, is_constant=False)
   
 
@@ -161,14 +216,16 @@ def DynEnv(env, key, val):
   env_copy[key] = val
   return env_copy
 
-def fn_max(fexpr, sym, env):
+def Val(expr, sym, env):
+  return ParseExpr(expr, sym, env)[0].value
+
+def fn_max(sym, env, fexpr):
   return ParseExpr(fexpr, sym, DynEnv(env, 'max', True))[0]
 
-def fn_avg(fexpr, sym, env):
+def fn_avg(sym, env, fexpr):
   return ParseExpr(fexpr, sym, DynEnv(env, 'avg', True))[0]
 
-def fn_mul(fexpr, sym, env):
-  mul_a, mul_b = fexpr.split(',')
+def fn_mul(sym, env, mul_a, mul_b):
   val_a = ParseExpr(mul_a, sym, env)[0]
   val_b = ParseExpr(mul_b, sym, env)[0]
   mul_flags = val_a.flags
@@ -181,8 +238,7 @@ def fn_mul(fexpr, sym, env):
   return Result(mul_val, mul_detail, mul_flags,
                 is_constant=(val_a.is_constant and val_b.is_constant))
   
-def fn_div(fexpr, sym, env):
-  numer, denom = fexpr.split(',')
+def fn_div(sym, env, numer, denom):
   numval = ParseExpr(numer, sym, env)[0]
   denval = ParseExpr(denom, sym, env)[0]
   div_flags = numval.flags
@@ -200,9 +256,122 @@ def fn_div(fexpr, sym, env):
         	is_constant=(numval.is_constant and denval.is_constant),
 		is_numeric=(denval.value != 0))
 
-def fn_bonus(fexpr, sym, env):
+def fn_bonus(sym, env, fexpr):
   bonus_res = ParseExpr(fexpr, sym, env)[0]
   return Result(bonus_res.constant_sum, [], {})
+
+def fn_d(sym, env, num_dice, sides):
+  return RollDice(Val(num_dice, sym, env), Val(sides, sym, env), env)
+
+def fn_explode(sym, env, fexpr):
+  return ParseExpr(fexpr, sym, DynEnv(env, 'explode', True))[0]
+
+RELOPS = {
+  '=': lambda x, y: x == y,
+  '==': lambda x, y: x == y,
+
+  '!=': lambda x, y: x != y,
+  '<>': lambda x, y: x != y,
+
+  '<': lambda x, y: x < y,
+  '<=': lambda x, y: x <= y,
+
+  '>': lambda x, y: x > y,
+  '>=': lambda x, y: x >= y,
+}
+
+RELOP_RE = re.compile(r'\s* ([=<>!]+) \s*', re.X)
+
+def details_highlight(ret, all):
+  out = ['(']
+  for idx, item in enumerate(all):
+    if idx > 0:
+      out.append(', ')
+    if item.value == ret.value:
+      out.append('=>')
+    out.append(item.detail())
+  out.append(')')
+  ret.details = [''.join(out)]
+  ret.constant_sum = 0
+  return ret 
+
+def fn_highest(sym, env, fexpr):
+  ret = ParseExpr(fexpr, sym, DynEnv(env, 'take_highest', True))
+  if len(ret) > 1:
+    # This was a vector-valued expression. Try again.
+    all = ParseExpr(fexpr, sym, env)
+    ret = sorted(all, key=lambda x: x.value, reverse=True)[0]
+    return details_highlight(ret, all)
+  else:
+    return ret[0]
+
+def fn_lowest(sym, env, fexpr):
+  ret = ParseExpr(fexpr, sym, DynEnv(env, 'take_lowest', True))
+  if len(ret) > 1:
+    # This was a vector-valued expression. Try again.
+    all = ParseExpr(fexpr, sym, env)
+    ret = sorted(all, key=lambda x: x.value)[0]
+    return details_highlight(ret, all)
+  else:
+    return ret[0]
+
+def relation(sym, env, expr):
+  m = RELOP_RE.search(expr)
+  if not m:
+    raise ParseError('"%s" is not a valid filter')
+  op = RELOPS.get(m.group(1))
+  if not op:
+    raise ParseError('"%s" is not a valid filter')
+  return expr[:m.start()].strip(), op, expr[m.end():].strip()
+
+def predicate(sym, env, expr):
+  lhs, op, rhs = relation(sym, env, expr)
+  #logging.debug('rhs=%s', rhs)
+  if lhs:
+    raise ParseError('Bad predicate, unexpected "%s"' % lhs)
+  thresh = Val(rhs, sym, env)
+  return lambda x: op(x, thresh)
+
+def fn_reroll_if(sym, env, filter, fexpr):
+  pred = predicate(sym, env, filter)
+  return ParseExpr(fexpr, sym, DynEnv(env, 'reroll_if', pred))[0]
+
+def fn_count(sym, env, filter, fexpr):
+  pred = predicate(sym, env, filter)
+  return ParseExpr(fexpr, sym, DynEnv(env, 'count', pred))[0]
+
+RESULT_TRUE = Result(1, [], {})
+RESULT_FALSE = Result(0, [], {})
+
+def boolean(sym, env, cond):
+  if '(' in cond:
+    ret = ParseExpr(cond, sym, env)[0]
+    return (ret.value != 0)
+  lhs, op, rhs = relation(sym, env, cond)
+  lval = Val(lhs, sym, env)
+  rval = Val(rhs, sym, env)
+  if op(lval, rval):
+    return True
+  else:
+    return False
+
+def fn_if(sym, env, cond, iftrue, iffalse):
+  if boolean(sym, env, cond):
+    return ParseExpr(iftrue, sym, env)[0]
+  else:
+    return ParseExpr(iffalse, sym, env)[0]
+
+def fn_and(sym, env, *args):
+  for arg in args:
+    if not boolean(sym, env, arg):
+      return RESULT_FALSE
+  return RESULT_TRUE
+
+def fn_or(sym, env, *args):
+  for arg in args:
+    if boolean(sym, env, arg):
+      return RESULT_TRUE
+  return RESULT_FALSE
 
 FUNCTIONS = {
   'max': fn_max,
@@ -210,7 +379,36 @@ FUNCTIONS = {
   'mul': fn_mul,
   'div': fn_div,
   'bonus': fn_bonus,
+
+  # new, document!
+  'd': fn_d,
+  'explode': fn_explode,
+  'reroll_if': fn_reroll_if,
+  'count': fn_count,
+  'highest': fn_highest,
+  'lowest': fn_lowest,
+  'if': fn_if,
+  'or': fn_or,
+  'and': fn_and,
 }
+
+class Function(object):
+  def __init__(self, proto, expansion):
+    self.proto = proto
+    self.expansion = expansion
+
+  def eval(self, sym, env, args):
+    sym_save = {}
+    for idx, item in enumerate(args):
+      key = self.proto[idx]
+      old = sym.get(key)
+      if old:
+	sym_save[key] = old
+      sym[key] = ParseExpr(item, sym, env)[0]
+
+    ret = ParseExpr(self.expansion, sym, env)[0]
+    sym.update(sym_save)
+    return ret
 
 def ParseExpr(expr, sym, parent_env):
   # ignore Nx(...) for now
@@ -253,7 +451,7 @@ def ParseExpr(expr, sym, parent_env):
     env['stats']['objects'] += 1
     if env['stats']['objects'] > MAX_OBJECTS:
       raise ParseError('Max number of objects exceeded')
-    #print "matcher: expr start '%s'" % (expr[start:])
+    #logging.debug('matcher: expr "%s" <!> "%s', expr[:start], expr[start:])
 
     # Optional +/-
     msign = PLUSMINUS_RE.match(expr[start:])
@@ -268,19 +466,42 @@ def ParseExpr(expr, sym, parent_env):
     if not m:
       break
     matched = m.group(0)
+    match_end = m.end()
+    #logging.debug('expr "%s"', matched)
     dict = m.groupdict()
     if dict['dice']:
-      limit = int(GetNotNone(dict, 'limit', env.get('reroll_limit', 1)))
+      limit = int(GetNotNone(dict, 'limit', 0))
+      if limit:
+        reroll_pred = lambda x: x < limit
+      else:
+        reroll_pred = env.get('reroll_if', never)
       Add(RollDice(int(GetNotNone(dict, 'num_dice', 1)),
-	            int(GetNotNone(dict, 'sides', 1)),
-		    DynEnv(env, 'reroll_limit', limit)), sign)
+	           int(GetNotNone(dict, 'sides', 1)),
+	           DynEnv(env, 'reroll_if', reroll_pred)), sign)
     elif dict['number']:
       Add(Result(int(matched), [matched], {}), sign)
     elif dict['symbol']:
       expansion = LookupSym(matched, sym, start==0)
       if expansion is None:
-        raise ParseError('Symbol "%s" not found' % matched)
-      Add(ParseExpr(expansion, sym, env)[0], sign)
+        fname = ''
+	args = []
+	fidx = 0
+        for nm in NUMBER_RE.finditer(matched):
+	  args.append(int(nm.group()))
+	  fname += matched[fidx:nm.start()] + '$'
+	  fidx = nm.end()
+	fname += matched[fidx:]
+	#logging.debug('maybe-fn: fname="%s" args=%s', fname, repr(args))
+	func = LookupSym(fname, sym, start==0)
+	if func is None:
+	  raise ParseError('Symbol "%s" not found' % matched)
+	
+	if not isinstance(func, Function):
+	  raise ParseError('Symbol "%s" is not a function' % matched)
+	expansion = func.eval(sym, env, args)
+      if not isinstance(expansion, Result):
+        expansion = ParseExpr(expansion, sym, env)[0]
+      Add(expansion, sign)
     elif dict['string']:
       def eval_string(match):
         return str(ParseExpr(match.group(1), sym, env)[0].value)
@@ -290,10 +511,44 @@ def ParseExpr(expr, sym, parent_env):
     elif dict['func']:
       fname = dict['name']
       fexpr = dict['expr']
+
+      # The regex is greedy, in "f(1)+g(2)" it will match "1)+g(".
+      # This makes the simple cases fast, but for complex expressions we need to
+      # handle parenthesis balancing properly.
+      args = []
+      argidx = 0
+      if ')' in fexpr:
+        open_parens = 0
+	for idx, char in enumerate(fexpr):
+	  if char == '(':
+	    open_parens += 1
+	  elif char == ')':
+	    open_parens -= 1
+	    if open_parens < 0:
+	      break
+	  elif char == ',' and open_parens == 0:
+	    args.append(fexpr[argidx:idx])
+	    argidx = idx+1
+	args.append(fexpr[argidx:])
+	fexpr = fexpr[:idx+1]
+	match_end = m.start('expr') + idx + 1
+      else:
+	args = fexpr.split(',')
+        
       # print 'fexpr=%s' % fexpr
       fn = FUNCTIONS.get(fname, None)
-      if fn:
-        Add(fn(fexpr, sym, env), sign)
+      func = None
+      if not fn:
+        func = sym.get(fname + ('$' * len(args)))
+      if func and isinstance(func, Function):
+	Add(func.eval(sym, env, args), sign)
+      elif fn:
+	try:
+          ret = fn(sym, env, *args)
+	except TypeError, e:
+	  logging.info('TypeError: %s', e, exc_info=True)
+	  raise ParseError('%s: unexpected args %s' % (fname, repr(args)))
+        Add(ret, sign)
       elif N_TIMES_RE.match(fname):
         ntimes = int(N_TIMES_RE.match(fname).group(1))
 	if ntimes > 100:
@@ -301,15 +556,16 @@ def ParseExpr(expr, sym, parent_env):
 	rolls = [ParseExpr(fexpr, sym, env)[0] for _ in xrange(ntimes)]
 	return rolls
       else:
-        raise ParseError('Unknown function "%s"' % fname)
+        raise ParseError('Unknown function "%s(%s)"' % (fname, ','.join(['_']*len(args))))
 
-    start += m.end()
+    start += match_end
 
   result[0].stats = env['stats']
   return result
 
 if __name__ == '__main__':
   random.seed(2) # specially picked, first d20 gets a 20
+  logging.getLogger().setLevel(logging.DEBUG)
 
   sym = {
     'Deft Strike': 'd4+4',
@@ -326,6 +582,10 @@ if __name__ == '__main__':
     'Enh': '2',
     'Bash': 'd20 + StrP + Enh',
     'Hometown': '"New York"',
+    'e$$': Function(['Count', 'TN'], 'count(>= TN, explode(d(Count, 6)))'),
+    '$es$': Function(['x', 'y'], 'e(x,y)'),
+    'fact$': Function(['n'], 'if(n <= 1, n, mul(n, fact(n - 1)))'),
+    'fib$': Function(['n'], 'if(n==0, 0, if(n==1, 1, fib(n-1) + fib(n-2)))'),
   }
 
   sym_tests = [
@@ -362,6 +622,8 @@ if __name__ == '__main__':
     ('Deft Strike - 2d4', -1),
     ('max(Deft Strike+Sneak Attack) + 4d10', 45),
     ('max(3d6) + 3d6 + avg(3d6b3) + max(d8)', 50.5),
+    ('avg(d6b2)', 4.0),
+    ('avg(explode(d6))', 4.2),
     ('12x(Bash)', ''),
     ('3x(Deft Strike)', ''),
     ('div(7, 2)', 3),
@@ -374,10 +636,26 @@ if __name__ == '__main__':
     ('div(Bash, 0)', '/0=DivideByZero'),
     ('mul(Level, 2)', 6),
     ('mul(d6, d10)', 30),
+    ('count(>=4, 10d6)', 5),
+    ('count(>=5, explode(10d4))', 3),
+    ('count(>=5, explode(d(10,4)))', 3),
+    ('lowest(6d6)', 2),
+    ('highest(2d6 + 2)', 5),
+    ('highest(3x(3d6))', 10),
+    ('lowest(2x(d20+12))', 15),
+    ('e(10, 7)', 2),
+    ('10es7', 2),
+    ('fact(5)', 120),
+    ('fib(7)', 13),
+
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
     ('50x(50d6)', 'ParseError'),
   ]
+
+  args = sys.argv[1:]
+  if args:
+    tests = [(x, 0) for x in args]
 
   for expr, expected in tests:
     result_str = 'Error'
@@ -399,7 +677,7 @@ if __name__ == '__main__':
       if result_val == expected:
         status='pass'
     if status == 'FAIL':
-      print status, expr, result_str, '# got %s, expected %s' % (repr(result_str), result_val, repr(expected))
+      print status, expr, result_str, '# got %s, expected %s' % (result_val, repr(expected))
     else:
       print status, expr, result_str
 
