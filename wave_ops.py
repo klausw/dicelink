@@ -79,7 +79,7 @@ def OnBlipSubmitted(properties, context):
   def WaveCharacterSaver(sheet):
     name = sheet.name
     #logging.debug('WaveCharacterSaver: name="%s" blipId=%s', name, blipId)
-    persist.SaveCharacter(name, creator, waveId, waveletId, blipId, str(sheet))
+    persist.SaveCharacter(name, modifier, waveId, waveletId, blipId, str(sheet))
     #if blipId:
     #  SetTextOfBlip(context, waveId, waveletId, blipId, str(sheet))
 
@@ -105,12 +105,9 @@ def OnBlipSubmitted(properties, context):
     if char:
       logging.info('save char sheet, name="%s", keys=%d, bytes=%d', char.name, len(char.dict), len(txt))
       char.save()
-      persist.SetDefaultChar(creator, char.name)
+      persist.SetDefaultChar(modifier, char.name)
       #SetStatus(context, 'Updated character %s' % char.name)
   elif '[' in txt:
-    if modifier != creator:
-      logging.info('Not evaluating, modifier "%s" != creator "%s"' % (modifier, creator))
-      return
     def replacer(start, end, texts):
       return SetTextWithAttributes(doc, start, end, texts)
     def defaultgetter():
