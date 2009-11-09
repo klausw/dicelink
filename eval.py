@@ -392,10 +392,22 @@ FUNCTIONS = {
   'and': fn_and,
 }
 
+DOLLAR_RE = re.compile(r'\$')
+
 class Function(object):
   def __init__(self, proto, expansion):
     self.proto = proto
     self.expansion = expansion
+
+  def name(self, key):
+    out = []
+    pos = 0
+    for idx, item in enumerate(DOLLAR_RE.finditer(key)):
+      out.append(key[pos:item.start()])
+      out.append('(%s)' % self.proto[idx])
+      pos = item.end()
+    out.append(key[pos:])
+    return ''.join(out)
 
   def eval(self, sym, env, args):
     sym_save = {}
@@ -586,6 +598,7 @@ if __name__ == '__main__':
     '$es$': Function(['x', 'y'], 'e(x,y)'),
     'fact$': Function(['n'], 'if(n <= 1, n, mul(n, fact(n - 1)))'),
     'fib$': Function(['n'], 'if(n==0, 0, if(n==1, 1, fib(n-1) + fib(n-2)))'),
+    'a$bb$c': Function(['x', 'y'], 'x+y'),
   }
 
   sym_tests = [
@@ -652,6 +665,9 @@ if __name__ == '__main__':
     ('Recursive + 2', 'ParseError'),
     ('50x(50d6)', 'ParseError'),
   ]
+
+  for k in ['$es$', 'a$bb$c']:
+    print "expand:", sym[k].name(k), sym[k].expansion
 
   args = sys.argv[1:]
   if args:

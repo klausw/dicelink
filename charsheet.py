@@ -117,7 +117,10 @@ class CharSheet(object):
       if appended < start:
         out.append(self.txt[appended:start])
       value = self.dict[key]
-      out.append('%s: %s' % (key, value))
+      if isinstance(value, eval.Function):
+        out.append('%s: %s' % (value.name(key), value.expansion))
+      else:
+	out.append('%s: %s' % (key, value))
       appended = end
     if appended < len(self.txt):
       out.append(self.txt[appended:])
