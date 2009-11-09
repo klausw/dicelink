@@ -373,6 +373,11 @@ def fn_or(sym, env, *args):
       return RESULT_TRUE
   return RESULT_FALSE
 
+def fn_not(sym, env, arg):
+  if boolean(sym, env, arg):
+    return RESULT_FALSE
+  return RESULT_TRUE
+
 FUNCTIONS = {
   'max': fn_max,
   'avg': fn_avg,
@@ -390,6 +395,7 @@ FUNCTIONS = {
   'if': fn_if,
   'or': fn_or,
   'and': fn_and,
+  'not': fn_not,
 }
 
 DOLLAR_RE = re.compile(r'\$')
@@ -660,6 +666,7 @@ if __name__ == '__main__':
     ('10es7', 2),
     ('fact(5)', 120),
     ('fib(7)', 13),
+    ('if(not(and(1!=2, 1==2)), 100, 200)', 100),
 
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
