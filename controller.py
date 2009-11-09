@@ -15,12 +15,16 @@ EXPR_RE = re.compile(r'''
   \]
   ''', re.X)
 
+PARENS_RE = re.compile(r'\(.*\)')
+
 def handle_text(txt, defaultgetter, replacer):
   # calls replacer(start, end, texts) => offset_delta
   offset = 0
   for m in EXPR_RE.finditer(txt):
     out_lst = []
-    if '=' in m.group(2) or 'ParseError' in m.group():
+    expr = m.group(2)
+    expr_outside_parens = PARENS_RE.sub('', expr)
+    if '=' in expr_outside_parens or 'ParseError' in m.group():
       continue
     char = None
     charname = None
@@ -33,7 +37,8 @@ def handle_text(txt, defaultgetter, replacer):
       if not char:
 	out_lst.append(['"%s" not found' % charname, ('style/color', 'red')])
 
-    out_lst += handle_expr(char, m.group(2))
+    expr = expr.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+    out_lst += handle_expr(char, expr)
     if out_lst:
       if char and not m.group(1):
 	offset += replacer(m.start()+1+offset, m.start()+1+offset,
@@ -136,6 +141,9 @@ if __name__ == '__main__':
     '[20e5]',
     '[e(10, 5)]',
     '[10x(SpecialHit)]',
+    '[count(!=4, 6d6)+1]',
+    '[d6+count(>=4, 6d6)+1]',
+    '[if(d6>2, "yes", "no")]',
   ]
   
   for input in tests:
