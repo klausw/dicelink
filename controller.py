@@ -70,7 +70,7 @@ def handle_expr(char, expr):
     'opt_crit_notify': int(sym.get('_critNotify', sym.get('CritNotify', 20))),
   }
   try:
-    log_info.append('"%s":' % expr)
+    log_info.append('[%s]:' % expr)
     raw_result = eval.ParseExpr(expr, sym, env)
     if raw_result.show_as_list():
       results = raw_result.items()
