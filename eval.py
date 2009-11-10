@@ -145,7 +145,7 @@ class ResultList(Result):
   def is_numeric(self):
     return any([x.is_numeric() for x in self._items])
   def detail(self):
-    return self._detail + ', '.join(['%s=%s' % (x.detail(), x.publicval()) for x in self._items])
+    return '%s(%s)' % (self._detail, ', '.join(['%s=%s' % (x.detail(), x.publicval()) for x in self._items]))
 
 def never(x):
   return False
