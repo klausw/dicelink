@@ -89,8 +89,8 @@ class Result(object):
   def __init__(self, value, detail, flags, is_constant=True, is_numeric=True):
     self._value = value
     self._detail = detail
+    self._is_numeric = is_numeric
     self.is_constant = is_constant
-    self.is_numeric = is_numeric
     self.is_list = False
     self._show_as_list = False
     if is_constant:
@@ -112,11 +112,13 @@ class Result(object):
       return '(%s)' % self.detail()
     else:
       return '%s' % self.value()
+  def is_numeric(self):
+    return self._is_numeric
   def show_as_list(self):
     return self._show_as_list
   def publicval(self):
     maybe_value = []
-    if self.is_numeric:
+    if self.is_numeric():
       maybe_value = [str(self.value())]
     return ':'.join(maybe_value + self.flags.keys())
   def secretval(self):
@@ -127,7 +129,7 @@ class Result(object):
   def __str__(self):
     return self.detail() + '=' + self.publicval()
   def __repr__(self):
-    return 'Result(value=%s, constant_sum=%s, detail=%s, is_constant=%s, is_numeric=%s)' % (self._value, self.constant_sum, repr(self._detail), self.is_constant, self.is_numeric)
+    return 'Result(value=%s, constant_sum=%s, detail=%s, is_constant=%s, is_numeric=%s)' % (self._value, self.constant_sum, repr(self._detail), self.is_constant, self.is_numeric())
 
 class ResultList(Result):
   def __init__(self, items):
@@ -135,12 +137,13 @@ class ResultList(Result):
     self._items = items
     self._detail = ''
     self._show_as_list = True # set to False for dice rolls
-    self.is_numeric = False
     self.is_list = True
   def items(self):
     return self._items
   def value(self):
     return sum([x.value() for x in self._items])
+  def is_numeric(self):
+    return any([x.is_numeric() for x in self._items])
   def detail(self):
     return self._detail + ', '.join(['%s=%s' % (x.detail(), x.publicval()) for x in self._items])
 
@@ -465,7 +468,7 @@ class Function(object):
 def ParseExpr(expr, sym, parent_env):
   # ignore Nx(...) for now
   result = Result(0, '', {})
-  result.is_numeric = False
+  result._is_numeric = False
 
   # Make a shallow copy of the environment so that changes from child calls don't
   # propagate back up unintentionally.
@@ -477,8 +480,8 @@ def ParseExpr(expr, sym, parent_env):
   def Add(new_result, sign):
     result._value += sign * new_result.value()
     result.constant_sum += sign * new_result.constant_sum
-    if new_result.is_numeric or new_result.is_list:
-      result.is_numeric = True
+    if new_result.is_numeric() or new_result.is_list:
+      result._is_numeric = True
     new_detail = new_result._detail
     if new_detail and not new_result.is_constant:
       if sign < 0:
