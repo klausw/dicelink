@@ -736,6 +736,7 @@ if __name__ == '__main__':
     ('50x(50d6)', 'ParseError'),
   ]
 
+  # FIXME: put into proper test
   for k in ['$es$', 'a$bb$c']:
     print "expand:", sym[k].name(k), sym[k].expansion
 
@@ -743,6 +744,8 @@ if __name__ == '__main__':
   if args:
     tests = [(x, 0) for x in args]
 
+  ok = 0
+  bad = 0
   for expr, expected in tests:
     result_str = 'Error'
     result_val = None
@@ -760,7 +763,10 @@ if __name__ == '__main__':
       if result_val == expected:
         status='pass'
     if status == 'FAIL':
+      bad += 1
       print status, expr, result_str, '# got %s, expected %s' % (result_val, repr(expected))
     else:
+      ok += 1
       print status, expr, result_str
 
+  print '%d ok, %d fail, ran %d/%d' % (ok, bad, ok+bad, len(tests))
