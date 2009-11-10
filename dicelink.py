@@ -79,7 +79,7 @@ class Roll(webapp.RequestHandler):
     else:
       user = 'Anonymous'
       email = 'Anonymous@example.com'
-    content = self.request.get('content')
+    content = self.request.get('content') # not HTML escaped!
     campaign = self.request.get('campaign', ANON_CAMPAIGN)
     campaign = canonical_campaign(campaign)
 
@@ -89,32 +89,50 @@ class Roll(webapp.RequestHandler):
     waveId = campaign
     logging.debug('[]: wave_uid="%s", waveId="%s"' % (wave_uid, waveId))
 
-    content = cgi.escape(content) # FIXME, <>& in expressions?
     out_msg = [content]
+
     def saver(sheet):
       pass
+      
     def getter(name):
       logging.debug('Getter: name="%s"', name)
       sheet_txt = persist.GetCharacter(name, wave_uid, waveId)
       if sheet_txt:
 	return charsheet.CharSheet(sheet_txt)
+
+    # Assume replacements happen start to end
+    need_escape_start = [0]
+    need_escape_end = []
     def replacer(start, end, texts):
-      new = out_msg[0][:start]
+      before = out_msg[0][:start]
+      after = out_msg[0][end:]
+      new = ''
       for rtxt in texts:
-        txt = rtxt[0]
-	for anno, val in rtxt[1:]:
-	  if anno == 'style/fontWeight':
+        txt = cgi.escape(rtxt[0])
+        for anno, val in rtxt[1:]:
+          if anno == 'style/fontWeight':
 	    txt = '<b>' + txt + '</b>'
-	  elif anno == 'style/color':
+          elif anno == 'style/color':
 	    txt = '<span style="color: %s">%s</span>' % (val, txt)
-	new += txt
-      new += out_msg[0][end:]
-      out_msg[0] = new
-      return len(new) - (end - start)
+        new += txt
+      out_msg[0] = before + new + after
+      offset = len(new) - (end - start)
+      need_escape_end.append(start)
+      need_escape_start.append(end + offset)
+      return offset
+
     def defaultgetter():
       return persist.GetDefaultChar(wave_uid)
+
     charsheet.SetCharacterAccessors(getter, saver)
     controller.handle_text(content, defaultgetter, replacer)
+
+
+    need_escape_end.append(len(out_msg[0]))
+    offset = 0
+    for start, end in zip(need_escape_start, need_escape_end):
+      # html escape the outside bits in replacer()
+      offset += replacer(start+offset, end+offset, out_msg[0][start+offset:end+offset])
     persist.SaveMsg(user, out_msg[0], campaign)
 
     dest_url = '/'

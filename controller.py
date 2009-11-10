@@ -37,7 +37,8 @@ def handle_text(txt, defaultgetter, replacer):
       if not char:
 	out_lst.append(['"%s" not found' % charname, ('style/color', 'red')])
 
-    expr = expr.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+    # no longer needed, things should get unescaped on input and escaped on output outside the controller
+    #expr = expr.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
     out_lst += handle_expr(char, expr)
     if out_lst:
       if char and not m.group(1):
@@ -77,15 +78,13 @@ def handle_expr(char, expr):
 	log_info.append(repr(result.stats))
       detail=''
       value=''
-      # use cgi.escape() to prevent XSS from user-supplied string tags
+      # callers may need to use cgi.escape() to prevent XSS from user-supplied string tags?
       if '_secret' in sym or 'Secret' in sym:
-	value = result.secretval()
-	out_lst.append([cgi.escape(result.secretval()), ('style/fontWeight', 'bold')])
+	out_lst.append([result.secretval(), ('style/fontWeight', 'bold')])
       else:
 	detail = result.detail()
-	value = cgi.escape(result.publicval())
       out_lst.append([detail+'=', ('style/color', '#aa00ff')])
-      out_lst.append([value, ('style/fontWeight', 'bold')])
+      out_lst.append([result.publicval(), ('style/fontWeight', 'bold')])
       log_info.append('%s=%s' % (detail, value))
   except eval.ParseError, e:
     out_lst.append([str(e), ('style/color', 'red')])
@@ -101,7 +100,7 @@ if __name__ == '__main__':
 
   charsheet.CharSheet('''
     Name: Test
-    Attack: d20 + 5
+    Attack: d20 + 5 ">4"
     e(NumDice, TN): count(>= TN, explode(d(NumDice, 6)))
     (NumDice)e(TN): count(>= TN, explode(d(NumDice, 6)))
     fact(n): if(n <= 1, n, mul(n, fact(n - 1)))
@@ -144,6 +143,7 @@ if __name__ == '__main__':
     '[count(!=4, 6d6)+1]',
     '[d6+count(>=4, 6d6)+1]',
     '[if(d6>2, "yes", "no")]',
+    '[5x(Attack)]',
   ]
   
   for input in tests:
@@ -152,12 +152,21 @@ if __name__ == '__main__':
     def defaultgetter():
       return 'Test'
 
+    colors = { '#ff0000': '\033[31m', '#aa00ff': '\033[35m' }
     def replacer(start, end, texts):
-      new = out_msg[0][:start]
+      before = out_msg[0][:start]
+      after = out_msg[0][end:]
+      new = ''
       for rtxt in texts:
-	new += rtxt[0]
-      new += out_msg[0][end:]
-      out_msg[0] = new
+        txt = rtxt[0]
+        for anno, val in rtxt[1:]:
+          if anno == 'style/fontWeight':
+            txt = '\033[1m' + txt + '\033[0m'
+          elif anno == 'style/color':
+	    col = colors.get(val, '\033[36m')
+            txt = col + txt + '\033[0m'
+        new += txt
+      out_msg[0] = before + new + after
       return len(new) - (end - start)
 
     handle_text(input, defaultgetter, replacer)
