@@ -128,8 +128,8 @@ def RollDice(num_dice, sides, env):
   reroll_if = env.get('reroll_if', never)
   result = 0
   flags={}
-  dice = []
-  details = []
+  dice = [] # results for each roll
+  details = [] # ascii details for each roll
   for i in xrange(num_dice):
     rolls = []
     this_die = 0
@@ -267,11 +267,8 @@ def fn_explode(sym, env, fexpr):
   return ParseExpr(fexpr, sym, DynEnv(env, 'explode', True))[0]
 
 RELOPS = {
-  '=': lambda x, y: x == y,
   '==': lambda x, y: x == y,
-
   '!=': lambda x, y: x != y,
-  '<>': lambda x, y: x != y,
 
   '<': lambda x, y: x < y,
   '<=': lambda x, y: x <= y,
@@ -378,6 +375,15 @@ def fn_not(sym, env, arg):
     return RESULT_FALSE
   return RESULT_TRUE
 
+def fn_with(sym, env, binding, expr):
+  lhs, rhs = binding.split('=')
+  lhs = lhs.strip()
+  rhs = rhs.strip()
+  rhs_val = sym.get(rhs)
+  if not rhs_val:
+    rhs_val = ParseExpr(rhs, sym, env)[0]
+  return eval_with(sym, env, {lhs: rhs_val}, expr)
+
 FUNCTIONS = {
   'max': fn_max,
   'avg': fn_avg,
@@ -396,9 +402,23 @@ FUNCTIONS = {
   'or': fn_or,
   'and': fn_and,
   'not': fn_not,
+  'with': fn_with,
 }
 
 DOLLAR_RE = re.compile(r'\$')
+
+def eval_with(sym, env, bindings, expr):
+  sym_save = {}
+  for key, value in bindings.iteritems():
+    old = sym.get(key)
+    if old:
+      #logging.debug('eval_with: dyn bind %s, %s => %s', key, old, value)
+      sym_save[key] = old
+    sym[key] = value
+  
+  ret = ParseExpr(expr, sym, env)[0]
+  sym.update(sym_save)
+  return ret
 
 class Function(object):
   def __init__(self, proto, expansion):
@@ -416,17 +436,11 @@ class Function(object):
     return ''.join(out)
 
   def eval(self, sym, env, args):
-    sym_save = {}
+    bindings = {}
     for idx, item in enumerate(args):
       key = self.proto[idx]
-      old = sym.get(key)
-      if old:
-	sym_save[key] = old
-      sym[key] = ParseExpr(item, sym, env)[0]
-
-    ret = ParseExpr(self.expansion, sym, env)[0]
-    sym.update(sym_save)
-    return ret
+      bindings[key] = ParseExpr(item, sym, env)[0]
+    return eval_with(sym, env, bindings, self.expansion)
 
 def ParseExpr(expr, sym, parent_env):
   # ignore Nx(...) for now
@@ -605,6 +619,12 @@ if __name__ == '__main__':
     'fact$': Function(['n'], 'if(n <= 1, n, mul(n, fact(n - 1)))'),
     'fib$': Function(['n'], 'if(n==0, 0, if(n==1, 1, fib(n-1) + fib(n-2)))'),
     'a$bb$c': Function(['x', 'y'], 'x+y'),
+    'W': '1',
+    'Sword': 'd(W, 8) + StrMod + Enh',
+    'Dagger': 'd(W, 4) + StrMod + Enh',
+    'Weapon': 'Sword',
+    'Strike': 'Weapon',
+    'Destroy': 'with(W=2, Weapon)'
   }
 
   sym_tests = [
@@ -667,6 +687,13 @@ if __name__ == '__main__':
     ('fact(5)', 120),
     ('fib(7)', 13),
     ('if(not(and(1!=2, 1==2)), 100, 200)', 100),
+    ('with(Weapon=Dagger, Strike)', 7),
+    ('with(Weapon=Dagger, Destroy)', 10),
+    ('with(Weapon=Dagger+1, Destroy)', 8),
+    ('Strike', 7),
+    ('Destroy', 9),
+    ('with(W=3, with(Enh=4, Strike))', 27),
+    #FAIL: ('if(1==2, 3 "with,comma", 4 "unbalanced)paren")', "unbalanced)"),
 
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
