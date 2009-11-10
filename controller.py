@@ -71,7 +71,12 @@ def handle_expr(char, expr):
   }
   try:
     log_info.append('"%s":' % expr)
-    for result in eval.ParseExpr(expr, sym, env):
+    raw_result = eval.ParseExpr(expr, sym, env)
+    if raw_result.show_as_list():
+      results = raw_result.items()
+    else:
+      results = [raw_result]
+    for result in results:
       if out_lst:
 	out_lst.append([', '])
       else:

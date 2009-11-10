@@ -86,32 +86,38 @@ MAX_ROLLS=2000
 MAX_OBJECTS = 900 # <1000, or Python breaks first on recursion
 
 class Result(object):
-  def __init__(self, value, details, flags, is_constant=True, is_numeric=True):
-    self.value = value
-    self.details = details
+  def __init__(self, value, detail, flags, is_constant=True, is_numeric=True):
+    self._value = value
+    self._detail = detail
     self.is_constant = is_constant
     self.is_numeric = is_numeric
+    self.is_list = False
+    self._show_as_list = False
     if is_constant:
       self.constant_sum = value
     else:
       self.constant_sum = 0
     self.flags = flags
+  def value(self):
+    return self._value
   def detail(self):
-    maybe_constant = []
+    maybe_constant = ''
     if self.constant_sum != 0:
-      maybe_constant = [str(self.constant_sum)]
-    if not self.details:
+      maybe_constant = '+' + str(self.constant_sum)
+    if not self._detail:
       return ''
-    return '+'.join(self.details + maybe_constant).replace('--','').replace('+-', '-')
+    return (self._detail + maybe_constant).replace('--','').replace('+-', '-')
   def detail_paren(self):
-    if self.details:
+    if self._detail:
       return '(%s)' % self.detail()
     else:
-      return '%s' % self.value
+      return '%s' % self.value()
+  def show_as_list(self):
+    return self._show_as_list
   def publicval(self):
     maybe_value = []
     if self.is_numeric:
-      maybe_value = [str(self.value)]
+      maybe_value = [str(self.value())]
     return ':'.join(maybe_value + self.flags.keys())
   def secretval(self):
     if 'Nat20' in self.flags:
@@ -120,6 +126,23 @@ class Result(object):
       return self.publicval()
   def __str__(self):
     return self.detail() + '=' + self.publicval()
+  def __repr__(self):
+    return 'Result(value=%s, constant_sum=%s, detail=%s, is_constant=%s, is_numeric=%s)' % (self._value, self.constant_sum, repr(self._detail), self.is_constant, self.is_numeric)
+
+class ResultList(Result):
+  def __init__(self, items):
+    Result.__init__(self, 0, map(lambda x: x.detail(), items), {})
+    self._items = items
+    self._detail = ''
+    self._show_as_list = True # set to False for dice rolls
+    self.is_numeric = False
+    self.is_list = True
+  def items(self):
+    return self._items
+  def value(self):
+    return sum([x.value() for x in self._items])
+  def detail(self):
+    return self._detail + ', '.join(['%s=%s' % (x.detail(), x.publicval()) for x in self._items])
 
 def never(x):
   return False
@@ -205,7 +228,7 @@ def RollDice(num_dice, sides, env):
     {1:''}.get(num_dice, str(num_dice)),
     sides,
     ','.join(details))
-  return Result(result, [detail], flags, is_constant=False)
+  return Result(result, detail, flags, is_constant=False)
   
 
 N_TIMES_RE = re.compile(r'(\d+) x', re.X)
@@ -217,54 +240,54 @@ def DynEnv(env, key, val):
   return env_copy
 
 def Val(expr, sym, env):
-  return ParseExpr(expr, sym, env)[0].value
+  return ParseExpr(expr, sym, env).value()
 
 def fn_max(sym, env, fexpr):
-  return ParseExpr(fexpr, sym, DynEnv(env, 'max', True))[0]
+  return ParseExpr(fexpr, sym, DynEnv(env, 'max', True))
 
 def fn_avg(sym, env, fexpr):
-  return ParseExpr(fexpr, sym, DynEnv(env, 'avg', True))[0]
+  return ParseExpr(fexpr, sym, DynEnv(env, 'avg', True))
 
 def fn_mul(sym, env, mul_a, mul_b):
-  val_a = ParseExpr(mul_a, sym, env)[0]
-  val_b = ParseExpr(mul_b, sym, env)[0]
+  val_a = ParseExpr(mul_a, sym, env)
+  val_b = ParseExpr(mul_b, sym, env)
   mul_flags = val_a.flags
   mul_flags.update(val_b.flags)
-  mul_val = val_a.value * val_b.value
+  mul_val = val_a.value() * val_b.value()
   if val_a.is_constant and val_b.is_constant:
-    mul_detail = []
+    mul_detail = ''
   else:
-    mul_detail = ['%s*%s' % (val_a.detail_paren(), val_b.detail_paren())]
+    mul_detail = '%s*%s' % (val_a.detail_paren(), val_b.detail_paren())
   return Result(mul_val, mul_detail, mul_flags,
                 is_constant=(val_a.is_constant and val_b.is_constant))
   
 def fn_div(sym, env, numer, denom):
-  numval = ParseExpr(numer, sym, env)[0]
-  denval = ParseExpr(denom, sym, env)[0]
+  numval = ParseExpr(numer, sym, env)
+  denval = ParseExpr(denom, sym, env)
   div_flags = numval.flags
   div_flags.update(denval.flags)
-  if denval.value == 0:
+  if denval.value() == 0:
     div_val = 0
     div_flags['DivideByZero'] = True
   else:
-    div_val = int(numval.value) / int(denval.value)
+    div_val = int(numval.value()) / int(denval.value())
   if numval.is_constant and denval.is_constant:
-    div_detail = []
+    div_detail = ''
   else:
-    div_detail = ['%s/%s' % (numval.detail_paren(), denval.detail_paren())]
+    div_detail = '%s/%s' % (numval.detail_paren(), denval.detail_paren())
   return Result(div_val, div_detail, div_flags, 
         	is_constant=(numval.is_constant and denval.is_constant),
-		is_numeric=(denval.value != 0))
+		is_numeric=(denval.value() != 0))
 
 def fn_bonus(sym, env, fexpr):
-  bonus_res = ParseExpr(fexpr, sym, env)[0]
-  return Result(bonus_res.constant_sum, [], {})
+  bonus_res = ParseExpr(fexpr, sym, env)
+  return Result(bonus_res.constant_sum, '', {})
 
 def fn_d(sym, env, num_dice, sides):
   return RollDice(Val(num_dice, sym, env), Val(sides, sym, env), env)
 
 def fn_explode(sym, env, fexpr):
-  return ParseExpr(fexpr, sym, DynEnv(env, 'explode', True))[0]
+  return ParseExpr(fexpr, sym, DynEnv(env, 'explode', True))
 
 RELOPS = {
   '==': lambda x, y: x == y,
@@ -280,37 +303,32 @@ RELOPS = {
 RELOP_RE = re.compile(r'\s* ([=<>!]+) \s*', re.X)
 
 def details_highlight(ret, all):
-  out = ['(']
-  for idx, item in enumerate(all):
-    if idx > 0:
-      out.append(', ')
-    if item.value == ret.value:
-      out.append('=>')
-    out.append(item.detail())
-  out.append(')')
-  ret.details = [''.join(out)]
-  ret.constant_sum = 0
-  return ret 
+  for item in all._items:
+    if item.value() == ret.value():
+      item._detail = '=>' + item._detail
+      break
+  detail = '(%s)' % all.detail()
+  return Result(ret.value(), detail, {}, is_constant=False)
 
 def fn_highest(sym, env, fexpr):
   ret = ParseExpr(fexpr, sym, DynEnv(env, 'take_highest', True))
-  if len(ret) > 1:
+  if ret.is_list:
     # This was a vector-valued expression. Try again.
     all = ParseExpr(fexpr, sym, env)
-    ret = sorted(all, key=lambda x: x.value, reverse=True)[0]
+    ret = sorted(all._items, key=lambda x: x.value(), reverse=True)[0]
     return details_highlight(ret, all)
   else:
-    return ret[0]
+    return ret
 
 def fn_lowest(sym, env, fexpr):
   ret = ParseExpr(fexpr, sym, DynEnv(env, 'take_lowest', True))
-  if len(ret) > 1:
+  if ret.is_list:
     # This was a vector-valued expression. Try again.
     all = ParseExpr(fexpr, sym, env)
-    ret = sorted(all, key=lambda x: x.value)[0]
+    ret = sorted(all._items, key=lambda x: x.value())[0]
     return details_highlight(ret, all)
   else:
-    return ret[0]
+    return ret
 
 def relation(sym, env, expr):
   m = RELOP_RE.search(expr)
@@ -331,19 +349,19 @@ def predicate(sym, env, expr):
 
 def fn_reroll_if(sym, env, filter, fexpr):
   pred = predicate(sym, env, filter)
-  return ParseExpr(fexpr, sym, DynEnv(env, 'reroll_if', pred))[0]
+  return ParseExpr(fexpr, sym, DynEnv(env, 'reroll_if', pred))
 
 def fn_count(sym, env, filter, fexpr):
   pred = predicate(sym, env, filter)
-  return ParseExpr(fexpr, sym, DynEnv(env, 'count', pred))[0]
+  return ParseExpr(fexpr, sym, DynEnv(env, 'count', pred))
 
-RESULT_TRUE = Result(1, [], {})
-RESULT_FALSE = Result(0, [], {})
+RESULT_TRUE = Result(1, '', {})
+RESULT_FALSE = Result(0, '', {})
 
 def boolean(sym, env, cond):
   if '(' in cond:
-    ret = ParseExpr(cond, sym, env)[0]
-    return (ret.value != 0)
+    ret = ParseExpr(cond, sym, env)
+    return (ret.value() != 0)
   lhs, op, rhs = relation(sym, env, cond)
   lval = Val(lhs, sym, env)
   rval = Val(rhs, sym, env)
@@ -354,9 +372,9 @@ def boolean(sym, env, cond):
 
 def fn_if(sym, env, cond, iftrue, iffalse):
   if boolean(sym, env, cond):
-    return ParseExpr(iftrue, sym, env)[0]
+    return ParseExpr(iftrue, sym, env)
   else:
-    return ParseExpr(iffalse, sym, env)[0]
+    return ParseExpr(iffalse, sym, env)
 
 def fn_and(sym, env, *args):
   for arg in args:
@@ -381,7 +399,7 @@ def fn_with(sym, env, binding, expr):
   rhs = rhs.strip()
   rhs_val = sym.get(rhs)
   if not rhs_val:
-    rhs_val = ParseExpr(rhs, sym, env)[0]
+    rhs_val = ParseExpr(rhs, sym, env)
   return eval_with(sym, env, {lhs: rhs_val}, expr)
 
 FUNCTIONS = {
@@ -416,7 +434,7 @@ def eval_with(sym, env, bindings, expr):
       sym_save[key] = old
     sym[key] = value
   
-  ret = ParseExpr(expr, sym, env)[0]
+  ret = ParseExpr(expr, sym, env)
   sym.update(sym_save)
   return ret
 
@@ -439,13 +457,13 @@ class Function(object):
     bindings = {}
     for idx, item in enumerate(args):
       key = self.proto[idx]
-      bindings[key] = ParseExpr(item, sym, env)[0]
+      bindings[key] = ParseExpr(item, sym, env)
     return eval_with(sym, env, bindings, self.expansion)
 
 def ParseExpr(expr, sym, parent_env):
   # ignore Nx(...) for now
-  result = [Result(0, [], {})]
-  result[0].is_numeric = False
+  result = Result(0, '', {})
+  result.is_numeric = False
 
   # Make a shallow copy of the environment so that changes from child calls don't
   # propagate back up unintentionally.
@@ -455,18 +473,23 @@ def ParseExpr(expr, sym, parent_env):
     env['stats'] = {'rolls': 0, 'objects': 0}
 
   def Add(new_result, sign):
-    result[0].value += sign * new_result.value
-    result[0].constant_sum += sign * new_result.constant_sum
-    if new_result.is_numeric:
-      result[0].is_numeric = True
-    new_details = new_result.details
-    if sign < 0 and new_details:
-      new_details[0] = '-'+new_details[0]
+    result._value += sign * new_result.value()
+    result.constant_sum += sign * new_result.constant_sum
+    if new_result.is_numeric or new_result.is_list:
+      result.is_numeric = True
+    new_detail = new_result._detail
+    if new_detail and not new_result.is_constant:
+      if sign < 0:
+	result._detail = result._detail + '-' + new_detail
+      else:
+        if result._detail:
+	  result._detail = result._detail + '+' + new_detail
+	else:
+	  result._detail = new_detail
     if not new_result.is_constant:
-      result[0].details += new_details
-      result[0].is_constant = False
+      result.is_constant = False
     for k, v in new_result.flags.iteritems():
-      result[0].flags[k] = v
+      result.flags[k] = v
 
   def GetNotNone(dict, key, default):
     """Like {}.get(), but return default if the key is present with value None"""
@@ -511,7 +534,7 @@ def ParseExpr(expr, sym, parent_env):
 	           int(GetNotNone(dict, 'sides', 1)),
 	           DynEnv(env, 'reroll_if', reroll_pred)), sign)
     elif dict['number']:
-      Add(Result(int(matched), [matched], {}), sign)
+      Add(Result(int(matched), matched, {}), sign)
     elif dict['symbol']:
       expansion = LookupSym(matched, sym, start==0)
       if expansion is None:
@@ -532,14 +555,14 @@ def ParseExpr(expr, sym, parent_env):
 	  raise ParseError('Symbol "%s" is not a function' % matched)
 	expansion = func.eval(sym, env, args)
       if not isinstance(expansion, Result):
-        expansion = ParseExpr(expansion, sym, env)[0]
+        expansion = ParseExpr(expansion, sym, env)
       Add(expansion, sign)
     elif dict['string']:
       def eval_string(match):
-        return str(ParseExpr(match.group(1), sym, env)[0].value)
+        return str(ParseExpr(match.group(1), sym, env).value())
       # set flag, including double quotes
       new_string = INTERPOLATE_RE.sub(eval_string, matched)
-      result[0].flags[new_string] = True
+      result.flags[new_string] = True
     elif dict['func']:
       fname = dict['name']
       fexpr = dict['expr']
@@ -585,14 +608,14 @@ def ParseExpr(expr, sym, parent_env):
         ntimes = int(N_TIMES_RE.match(fname).group(1))
 	if ntimes > 100:
 	  raise ParseError('ntimes: number too big')
-	rolls = [ParseExpr(fexpr, sym, env)[0] for _ in xrange(ntimes)]
+	rolls = ResultList([ParseExpr(fexpr, sym, env) for _ in xrange(ntimes)])
 	return rolls
       else:
         raise ParseError('Unknown function "%s(%s)"' % (fname, ','.join(['_']*len(args))))
 
     start += match_end
 
-  result[0].stats = env['stats']
+  result.stats = env['stats']
   return result
 
 if __name__ == '__main__':
@@ -654,11 +677,11 @@ if __name__ == '__main__':
     ('d20+12', 31),
     ('3d6', 8),
     ('12d6b2', 51),
-    ('Deft Strike', 6),
-    ('Deft Strike + Sneak Attack + 2', '+13=17'),
-    ('Deft Strike + -1', 5),
-    ('Deft Strike - 1', 5),
-    ('Deft Strike - 2d4', -1),
+    ('Deft Strike', "d4(2)+4=6"),
+    ('Deft Strike + Sneak Attack + 2', 'd4(2)+2d8(1,1)+13=17'),
+    ('Deft Strike + -1', "d4(2)+3=5"),
+    ('Deft Strike - 1', "d4(2)+3=5"),
+    ('Deft Strike - 2d4', "d4(2)-2d4(4,3)+4=-1"),
     ('max(Deft Strike+Sneak Attack) + 4d10', 45),
     ('max(3d6) + 3d6 + avg(3d6b3) + max(d8)', 50.5),
     ('avg(d6b2)', 4.0),
@@ -712,11 +735,8 @@ if __name__ == '__main__':
     result_val = None
     try:
       result = ParseExpr(expr, sym, env)
-      result_val = result[0].value
-      if len(result) == 1:
-        result_str = str(result[0])
-      else:
-	result_str = '%s' % map(str, result)
+      result_val = result.value()
+      result_str = str(result)
     except ParseError, e:
       result_str = str(e)
     status='FAIL'
