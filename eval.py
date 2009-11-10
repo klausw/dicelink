@@ -148,6 +148,8 @@ def never(x):
   return False
 
 def RollDice(num_dice, sides, env):
+  if sides <= 0:
+    return Result(0, '', {})
   reroll_if = env.get('reroll_if', never)
   result = 0
   flags={}
