@@ -577,18 +577,23 @@ def ParseExpr(expr, sym, parent_env):
       # handle parenthesis balancing properly.
       args = []
       argidx = 0
-      if ')' in fexpr:
+      if '(' in fexpr or '"' in fexpr:
         open_parens = 0
+	in_quotes = False
 	for idx, char in enumerate(fexpr):
-	  if char == '(':
+	  if char == '(' and not in_quotes:
 	    open_parens += 1
-	  elif char == ')':
+	  elif char == ')' and not in_quotes:
 	    open_parens -= 1
 	    if open_parens < 0:
 	      break
-	  elif char == ',' and open_parens == 0:
+	  elif char == '"':
+	    in_quotes = not in_quotes
+	  elif char == ',' and open_parens == 0 and not in_quotes:
 	    args.append(fexpr[argidx:idx])
 	    argidx = idx+1
+	if open_parens > 0:
+	  raise ParseError('Missing closing parenthesis in "%s"' % fexpr)
 	args.append(fexpr[argidx:])
 	fexpr = fexpr[:idx+1]
 	match_end = m.start('expr') + idx + 1
@@ -721,7 +726,10 @@ if __name__ == '__main__':
     ('Strike', 7),
     ('Destroy', 9),
     ('with(W=3, with(Enh=4, Strike))', 27),
-    #FAIL: ('if(1==2, 3 "with,comma", 4 "unbalanced)paren")', "unbalanced)"),
+
+    ('if(1==1, "with,comma", "more,comma")', '="with,comma"'),
+    ('if(1==2, 3 "with,comma", 4 "unbalanced)paren")', '=4:"unbalanced)paren"'),
+    ('if(1==2, 3, mul(2,3)', "Missing closing parenthesis"),
 
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
