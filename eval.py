@@ -368,7 +368,11 @@ def fn_len(sym, env, fexpr):
   all = ParseExpr(fexpr, sym, env)
   if not all.is_list:
     raise ParseError('len(%s): arg is not a list or dice roll' % fexpr)
-  return Result(len(all._items), '', {})
+  ret = 0
+  for item in all.items():
+    if item.is_numeric():
+      ret += 1
+  return Result(ret, '', {})
 
 def filter_list(all, pred):
   for i, old in enumerate(all._items):
@@ -449,7 +453,7 @@ def fn_count(sym, env, filter, fexpr):
     raise ParseError('cannot count non-list "%s"' % fexpr)
   ret = 0
   for item in val.items():
-    if pred(item.value()):
+    if item.is_numeric() and pred(item.value()):
       ret += 1
   return Result(ret, val.detail(), val.flags, is_constant=False)
   #return ParseExpr(fexpr, sym, DynEnv(env, 'count', pred))
@@ -492,6 +496,18 @@ def fn_if(sym, env, cond, iftrue, iffalse):
   else:
     return ParseExpr(iffalse, sym, env)
 
+def fn_cond(sym, env, *args):
+  nargs = len(args)
+  for i in xrange(0, len(args), 2):
+    if i == nargs-1:
+      # lonely leftover arg, treat as default value
+      return ParseExpr(args[i], sym, env)
+    cond = args[i]
+    arg = args[i+1]
+    if boolean(sym, env, cond):
+      return ParseExpr(arg, sym, env)
+  return RESULT_NIL
+
 def fn_and(sym, env, *args):
   for arg in args:
     if not boolean(sym, env, arg):
@@ -521,6 +537,36 @@ def fn_with(sym, env, binding, expr):
 def fn_val(sym, env, expr):
   return Result(ParseExpr(expr, sym, env).value(), '', {})
 
+def fn_lval(sym, env, expr):
+  arg = ParseExpr(expr, sym, env)
+  if not arg.is_list:
+    raise ParseError('lval(%s): arg is not a list or dice roll' % expr)
+  return ResultList([x for x in arg.items() if x.is_numeric()])
+
+def fn_list(sym, env, *args):
+  items = []
+  for arg in args:
+    items.append(ParseExpr(arg, sym, env))
+  return ResultList(items)
+
+def fn_nth(sym, env, num, expr):
+  num = ParseExpr(num, sym, env).value()
+  arg = ParseExpr(expr, sym, env)
+  if not arg.is_list:
+    raise ParseError('nth(%s): arg is not a list or dice roll' % expr)
+  return arg.items()[num]
+
+def fn_range(sym, env, e1, e2=None, e3=None):
+  args = [ParseExpr(e1, sym, env).value()]
+  if e2:
+    args.append(ParseExpr(e2, sym, env).value())
+  if e3:
+    args.append(ParseExpr(e3, sym, env).value())
+  
+  rg = range(*args)
+  values = [Result(x, '', {}, is_constant=True) for x in rg]
+  return ResultList(values)
+
 FUNCTIONS = {
   'max': fn_max,
   'avg': fn_avg,
@@ -549,6 +595,11 @@ FUNCTIONS = {
   'ifbound': fn_ifbound,
   'val': fn_val,
   'reroll_if': fn_reroll_if,
+  'cond': fn_cond,
+  'lval': fn_lval,
+  'list': fn_list,
+  'nth': fn_nth,
+  #'range': fn_range, # needs sanity check for ranges!
 }
 
 DOLLAR_RE = re.compile(r'\$')
@@ -902,6 +953,8 @@ if __name__ == '__main__':
 
     ('repeat(3, d20+2)', '(d20(9)+2=11, d20(14)+2=16, d20(19)+2=21:Critical)=48'),
     ('val(3d6)', r'/^=10$/'),
+    ('lval(3d6)', r'/^\(3, 6, 1\)/'),
+    ('lval(top(4, 10d20))', r'/^\(13, 14, 18, 20\)/'),
 
     ('Hometown', '="New York"'),
     ('fact(5)', 120),
@@ -910,6 +963,12 @@ if __name__ == '__main__':
     ('if(1==1, "with,comma", "more,comma")', '="with,comma"'),
     ('if(1==2, 3 "with,comma", 4 "unbalanced)paren")', '=4:"unbalanced)paren"'),
     ('if(1==2, 3, mul(2,3)', '/ParseError.*Missing closing parenthesis/'),
+    ('len(list(1,2,3,4))', 4),
+    ('len(pick(>=3, list(1,2,3,4)))', 2),
+    ('nth(3, list(10,11,12,13))', 13),
+    ('cond(1==0, "zero", 1==1, "one", 1==2, "two")', '"one"'),
+    ('cond(3==0, "zero", 3==1, "one", 3==2, "two")', r'/^=$/'),
+    ('cond(3==0, "zero", 3==1, "one", 3==2, "two", "other")', '"other"'),
 
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
