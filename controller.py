@@ -104,7 +104,7 @@ def handle_expr(char, expr):
       detail += '='
       out_lst += markup(detail)
       out_lst.append([value, ('style/fontWeight', 'bold')])
-      log_info.append('%s=%s' % (detail, value))
+      log_info.append(detail + value)
   except eval.ParseError, e:
     out_lst.append([str(e), ('style/color', 'red')])
     log_info.append(str(e))
@@ -146,6 +146,25 @@ if __name__ == '__main__':
     Axe: d12 + StrMod # Can refer to values from the template
   ''').save()
 
+  charsheet.CharSheet('''
+    Name: MultiWeapon
+
+    Weapon: Longsword # default weapon
+    Longsword: d(TimesW,8) + 2
+    Dagger: d(TimesW,4)
+    Maul: d(mul(2, TimesW), 6)
+
+    TimesW: 1 # Weapon dice multiplier, don't edit
+    (N)W: with(TimesW=N, Weapon)
+
+    StrMod: 4
+    DexMod: 2
+
+    Basic: 1W + StrMod
+    DexDamage: 1W + DexMod
+    DailyDamage: 2W + StrMod + DexMod 
+  ''').save()
+
   tests = [
     '[Warrior: Axe]',
     '[Warrior: Speed]',
@@ -166,6 +185,9 @@ if __name__ == '__main__':
     '[top(3, 4d6)]',
     '[top(3, 4x(3d6))]',
     '[BW(12,4)]',
+    '[MultiWeapon: with(Weapon=Maul, DailyDamage)]',
+    '[MultiWeapon: DailyDamage]',
+    '[MultiWeapon: with(Weapon=Dagger, DexDamage)]',
   ]
   
   for input in tests:
