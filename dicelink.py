@@ -68,6 +68,7 @@ class MainPage(webapp.RequestHandler):
     self.response.out.write(template.render(path, template_values))
 
 STRIP_ADDR_RE=re.compile(r'@.*')
+STYLE_RE = re.compile(r'style/(.*)')
 
 class Roll(webapp.RequestHandler):
   def post(self):
@@ -109,11 +110,13 @@ class Roll(webapp.RequestHandler):
       new = ''
       for rtxt in texts:
         txt = cgi.escape(rtxt[0])
+	styles = []
         for anno, val in rtxt[1:]:
-          if anno == 'style/fontWeight':
-	    txt = '<b>' + txt + '</b>'
-          elif anno == 'style/color':
-	    txt = '<span style="color: %s">%s</span>' % (val, txt)
+	  m = STYLE_RE.match(anno)
+	  if m:
+	    styles.append('%s: %s' % (m.group(1), val))
+	if styles:
+	  txt = '<span style="%s">%s</span>' % (';'.join(styles), txt)
         new += txt
       out_msg[0] = before + new + after
       offset = len(new) - (end - start)

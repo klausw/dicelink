@@ -47,6 +47,18 @@ def handle_text(txt, defaultgetter, replacer):
       out_lst = [[' ']] + out_lst
       offset += replacer(m.end(2)+offset, m.end(2)+offset, out_lst)
 
+STRIKETHROUGH_RE = re.compile(r'\/\* (.*?) \*\/', re.X)
+
+def markup(txt):
+  out = []
+  pos = 0
+  for m in STRIKETHROUGH_RE.finditer(txt):
+    out.append([txt[pos:m.start()], ('style/color', '#aa00ff')])
+    out.append([m.group(1), ('style/color', '#aa00ff'), ('text-decoration', 'line-through')]) 
+    pos = m.end()
+  out.append([txt[pos:], ('style/color', '#aa00ff')])
+  return out
+
 def handle_expr(char, expr):
   log_info = []
   out_lst = []
@@ -85,11 +97,13 @@ def handle_expr(char, expr):
       value=''
       # callers may need to use cgi.escape() to prevent XSS from user-supplied string tags?
       if '_secret' in sym or 'Secret' in sym:
-	out_lst.append([result.secretval(), ('style/fontWeight', 'bold')])
+	value = result.secretval()
       else:
+      	value = result.publicval()
 	detail = result.detail()
-      out_lst.append([detail+'=', ('style/color', '#aa00ff')])
-      out_lst.append([result.publicval(), ('style/fontWeight', 'bold')])
+      detail += '='
+      out_lst += markup(detail)
+      out_lst.append([value, ('style/fontWeight', 'bold')])
       log_info.append('%s=%s' % (detail, value))
   except eval.ParseError, e:
     out_lst.append([str(e), ('style/color', 'red')])
@@ -110,7 +124,7 @@ if __name__ == '__main__':
     (NumDice)e(TN): count(>= TN, explode(d(NumDice, 6)))
     fact(n): if(n <= 1, n, mul(n, fact(n - 1)))
     fib(n): if(or(n==0, n==1), n, fib(n-1) + fib(n-2))
-    BW(Dice, TN): "NotImplemented"
+    BW(n, TN): with(roll=sort(d(n, 6)), if(n==0, 0, count(>=TN, roll) + BW(count(==6, roll), TN)))
     SpecialResult(n): if(or(n<=8, n>=12), n "Nothing", if(or(n==9, n==12), n "Special Hit", n "Hit"))
     SpecialHit: SpecialResult(3d6)
   ''').save()
@@ -149,6 +163,9 @@ if __name__ == '__main__':
     '[d6+count(>=4, 6d6)+1]',
     '[if(d6>2, "yes", "no")]',
     '[5x(Attack)]',
+    '[top(3, 4d6)]',
+    '[top(3, 4x(3d6))]',
+    '[BW(12,4)]',
   ]
   
   for input in tests:
@@ -170,6 +187,8 @@ if __name__ == '__main__':
           elif anno == 'style/color':
 	    col = colors.get(val, '\033[36m')
             txt = col + txt + '\033[0m'
+	  elif val == 'line-through':
+	    txt = '\033[7m' + txt + '\033[0m'
         new += txt
       out_msg[0] = before + new + after
       return len(new) - (end - start)
