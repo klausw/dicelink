@@ -54,7 +54,7 @@ def markup(txt):
   pos = 0
   for m in STRIKETHROUGH_RE.finditer(txt):
     out.append([txt[pos:m.start()], ('style/color', '#aa00ff')])
-    out.append([m.group(1), ('style/color', '#aa00ff'), ('text-decoration', 'line-through')]) 
+    out.append([m.group(1), ('style/color', '#aa00ff'), ('textDecoration', 'line-through')]) 
     pos = m.end()
   out.append([txt[pos:], ('style/color', '#aa00ff')])
   return out
