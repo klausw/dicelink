@@ -1,3 +1,4 @@
+import copy
 import logging
 import random
 import re
@@ -92,7 +93,7 @@ class Result(object):
     self._is_numeric = is_numeric
     self.is_constant = is_constant
     self.is_list = False
-    self._show_as_list = False
+    self.stats = None
     if is_constant:
       self.constant_sum = value
     else:
@@ -100,22 +101,31 @@ class Result(object):
     self.flags = flags
   def value(self):
     return self._value
-  def detail(self):
+  def has_detail(self):
+    return self._detail
+  def detail(self, additional=''):
     maybe_constant = ''
     if self.constant_sum != 0:
       maybe_constant = '+' + str(self.constant_sum)
-    if not self._detail:
+    if not self.has_detail():
       return ''
-    return (self._detail + maybe_constant).replace('--','').replace('+-', '-')
+    return (self._detail + additional + maybe_constant).replace('--','').replace('+-', '-')
+  def detailvalue(self):
+    maybe_detail = self.detail()
+    maybe_value = self.publicval()
+    if maybe_detail and maybe_value:
+      return '%s=%s' % (maybe_detail, maybe_value)
+    else:
+      return maybe_detail + maybe_value
   def detail_paren(self):
-    if self._detail:
+    if self.has_detail():
       return '(%s)' % self.detail()
     else:
       return '%s' % self.value()
   def is_numeric(self):
     return self._is_numeric
   def show_as_list(self):
-    return self._show_as_list
+    return False
   def publicval(self):
     maybe_value = []
     if self.is_numeric():
@@ -129,23 +139,37 @@ class Result(object):
   def __str__(self):
     return self.detail() + '=' + self.publicval()
   def __repr__(self):
-    return 'Result(value=%s, constant_sum=%s, detail=%s, is_constant=%s, is_numeric=%s)' % (self._value, self.constant_sum, repr(self._detail), self.is_constant, self.is_numeric())
+    return 'Result(value=%s, flags=%s, constant_sum=%s, detail=%s, is_constant=%s, is_numeric=%s)' % (self._value, repr(self.flags), self.constant_sum, repr(self._detail), self.is_constant, self.is_numeric())
 
 class ResultList(Result):
   def __init__(self, items):
     Result.__init__(self, 0, map(lambda x: x.detail(), items), {})
     self._items = items
     self._detail = ''
-    self._show_as_list = True # set to False for dice rolls
+    self._delim = ', '
     self.is_list = True
+  def show_as_list(self):
+    return True
+  def to_scalar(self):
+    return Result(self.value(), self.detail(), self.flags, is_constant=False, is_numeric=True)
   def items(self):
     return self._items
   def value(self):
-    return sum([x.value() for x in self._items])
+    return self._value + sum([x.value() for x in self._items])
   def is_numeric(self):
     return any([x.is_numeric() for x in self._items])
+  def has_detail(self):
+    return True
   def detail(self):
-    return '%s(%s)' % (self._detail, ', '.join(['%s=%s' % (x.detail(), x.publicval()) for x in self._items]))
+    return Result.detail(self, '(%s)' % self._delim.join([x.detailvalue() for x in self._items]))
+
+class ResultDice(ResultList):
+  def __init(self, items):
+    ResultList.__init__(self, items)
+  def show_as_list(self):
+    return False
+  def detail(self):
+    return Result.detail(self, '(%s)' % self._delim.join([x.detailvalue() for x in self._items]))
 
 def never(x):
   return False
@@ -201,25 +225,12 @@ def RollDice(num_dice, sides, env):
     dice.append(this_die)
 
     if 'explode' in env:
-      txt = str(this_die) + '!' * (len(rolls)-1)
+      txt = '!' * (len(rolls)-1)
       details.append(txt)
-    else:
+    elif len(rolls) > 1:
       details.append('\\'.join(map(str, rolls)))
-  if 'count' in env:
-    predicate = env['count']
-    for die in dice:
-      if predicate(die):
-	result += 1
-  elif 'take_highest' in env:
-    result = max(dice)
-    for idx, val in enumerate(dice):
-      if val == result:
-        details[idx] = '=>' + details[idx]
-  elif 'take_lowest' in env:
-    result = min(dice)
-    for idx, val in enumerate(dice):
-      if val == result:
-        details[idx] = '=>' + details[idx]
+    else:
+      details.append('')
   else:
     result = sum(dice)
   # Special cases for D&D-style d20 rolls
@@ -233,7 +244,16 @@ def RollDice(num_dice, sides, env):
     {1:''}.get(num_dice, str(num_dice)),
     sides,
     ','.join(details))
-  return Result(result, detail, flags, is_constant=False)
+  #return Result(result, detail, flags, is_constant=False)
+  ret = ResultDice([Result(x, d, {}, is_constant=False) for x, d in zip(dice, details)])
+  # FIXME, move to constructor
+  ret.is_constant = False
+  ret._delim = ','
+  ret._detail = '%sd%d' % (
+    {1:''}.get(num_dice, str(num_dice)),
+    sides)
+  ret.flags = flags
+  return ret
   
 
 N_TIMES_RE = re.compile(r'(\d+) x', re.X)
@@ -315,25 +335,82 @@ def details_highlight(ret, all):
   detail = '(%s)' % all.detail()
   return Result(ret.value(), detail, {}, is_constant=False)
 
-def fn_highest(sym, env, fexpr):
-  ret = ParseExpr(fexpr, sym, DynEnv(env, 'take_highest', True))
-  if ret.is_list:
-    # This was a vector-valued expression. Try again.
-    all = ParseExpr(fexpr, sym, env)
-    ret = sorted(all._items, key=lambda x: x.value(), reverse=True)[0]
-    return details_highlight(ret, all)
-  else:
-    return ret
+def fn_high(sym, env, fexpr):
+  return fn_top(sym, env, '1', fexpr)
 
-def fn_lowest(sym, env, fexpr):
-  ret = ParseExpr(fexpr, sym, DynEnv(env, 'take_lowest', True))
-  if ret.is_list:
-    # This was a vector-valued expression. Try again.
-    all = ParseExpr(fexpr, sym, env)
-    ret = sorted(all._items, key=lambda x: x.value())[0]
-    return details_highlight(ret, all)
+def fn_low(sym, env, fexpr):
+  return fn_bottom(sym, env, '1', fexpr)
+
+def fn_sort(sym, env, fexpr):
+  all = ParseExpr(fexpr, sym, env)
+  if not all.is_list:
+    raise ParseError('sort(%s): arg is not a list or dice roll' % fexpr)
+  all._items = sorted(all._items, key=lambda x: x.value())
+  return all
+
+def fn_rsort(sym, env, fexpr):
+  all = ParseExpr(fexpr, sym, env)
+  if not all.is_list:
+    raise ParseError('rsort(%s): arg is not a list or dice roll' % fexpr)
+  all._items = sorted(all._items, key=lambda x: x.value(), reverse=True)
+  return all
+
+def fn_len(sym, env, fexpr):
+  all = ParseExpr(fexpr, sym, env)
+  if not all.is_list:
+    raise ParseError('len(%s): arg is not a list or dice roll' % fexpr)
+  return Result(len(all._items), '', {})
+
+def filter_list(all, pred):
+  for i, old in enumerate(all._items):
+    if pred(i, old):
+      continue
+    new = copy.deepcopy(RESULT_NIL)
+    maybe_detail = ''
+    if old.has_detail():
+      maybe_detail = '%s=' % old.detail()
+    new._detail = '/*%s%s*/' % (maybe_detail, old.value())
+    all._items[i] = new
+  return all
+
+def fn_pick(sym, env, filter, fexpr):
+  all = ParseExpr(fexpr, sym, env)
+  if not all.is_list:
+    raise ParseError('pick(%s): arg is not a list or dice roll' % fexpr)
+  pred = predicate(sym, env, filter)
+  return filter_list(all, lambda i, item: pred(item.value()))
+
+  raise ParseError('not implemented')
+
+def fn_slice(sym, env, fexpr, start_expr, end_expr=None):
+  all = ParseExpr(fexpr, sym, env)
+  if not all.is_list:
+    raise ParseError('slice(%s): arg is not a list or dice roll' % fexpr)
+  num = len(all._items)
+  start = ParseExpr(start_expr, sym, env).value()
+  if end_expr is None:
+    if start >= 0:
+      end = start
+      start = 0
+    else:
+      end = num
   else:
-    return ret
+    end = ParseExpr(end_expr, sym, env).value()
+  if start < 0:
+    start = num + start
+  if end < 0:
+    end = num + end
+  if start < 0 or start > num or end < 0 or end > num:
+    raise ParseError('slice: index out of range')
+  return filter_list(all, lambda i, item: i>= start and i < end)
+
+def fn_top(sym, env, num, fexpr):
+  all = fn_sort(sym, env, fexpr)
+  return fn_slice(sym, env, all, - ParseExpr(num, sym, env).value())
+
+def fn_bottom(sym, env, num, fexpr):
+  all = fn_sort(sym, env, fexpr)
+  return fn_slice(sym, env, all, ParseExpr(num, sym, env).value())
 
 def relation(sym, env, expr):
   m = RELOP_RE.search(expr)
@@ -358,10 +435,19 @@ def fn_reroll_if(sym, env, filter, fexpr):
 
 def fn_count(sym, env, filter, fexpr):
   pred = predicate(sym, env, filter)
-  return ParseExpr(fexpr, sym, DynEnv(env, 'count', pred))
+  val = ParseExpr(fexpr, sym, env)
+  if not val.is_list:
+    raise ParseError('cannot count non-list "%s"' % fexpr)
+  ret = 0
+  for item in val.items():
+    if pred(item.value()):
+      ret += 1
+  return Result(ret, val.detail(), val.flags, is_constant=False)
+  #return ParseExpr(fexpr, sym, DynEnv(env, 'count', pred))
 
-RESULT_TRUE = Result(1, '', {})
-RESULT_FALSE = Result(0, '', {})
+RESULT_TRUE = Result(1, '', {}, is_numeric=False)
+RESULT_FALSE = Result(0, '', {}, is_numeric=False)
+RESULT_NIL = Result(0, '', {}, is_numeric=False)
 
 def boolean(sym, env, cond):
   if '(' in cond:
@@ -419,8 +505,15 @@ FUNCTIONS = {
   'explode': fn_explode,
   'reroll_if': fn_reroll_if,
   'count': fn_count,
-  'highest': fn_highest,
-  'lowest': fn_lowest,
+  'len': fn_len,
+  'slice': fn_slice,
+  'pick': fn_pick,
+  'sort': fn_sort,
+  'rsort': fn_rsort,
+  'high': fn_high,
+  'low': fn_low,
+  'top': fn_top,
+  'bottom': fn_bottom,
   'if': fn_if,
   'or': fn_or,
   'and': fn_and,
@@ -435,7 +528,6 @@ def eval_with(sym, env, bindings, expr):
   for key, value in bindings.iteritems():
     old = sym.get(key)
     if old:
-      #logging.debug('eval_with: dyn bind %s, %s => %s', key, old, value)
       sym_save[key] = old
     sym[key] = value
   
@@ -466,9 +558,11 @@ class Function(object):
     return eval_with(sym, env, bindings, self.expansion)
 
 def ParseExpr(expr, sym, parent_env):
+  if isinstance(expr, Result):
+    return expr
   # ignore Nx(...) for now
-  result = Result(0, '', {})
-  result._is_numeric = False
+  result = []
+  signs = []
 
   # Make a shallow copy of the environment so that changes from child calls don't
   # propagate back up unintentionally.
@@ -478,23 +572,16 @@ def ParseExpr(expr, sym, parent_env):
     env['stats'] = {'rolls': 0, 'objects': 0}
 
   def Add(new_result, sign):
-    result._value += sign * new_result.value()
-    result.constant_sum += sign * new_result.constant_sum
-    if new_result.is_numeric() or new_result.is_list:
-      result._is_numeric = True
-    new_detail = new_result._detail
-    if new_detail and not new_result.is_constant:
-      if sign < 0:
-	result._detail = result._detail + '-' + new_detail
-      else:
-        if result._detail:
-	  result._detail = result._detail + '+' + new_detail
-	else:
-	  result._detail = new_detail
-    if not new_result.is_constant:
-      result.is_constant = False
-    for k, v in new_result.flags.iteritems():
-      result.flags[k] = v
+    #logging.debug('Add: %s, sign=%s', repr(new_result), sign)
+    result.append(new_result)
+    signs.append(sign)
+
+  def AddFlag(flag, value):
+    if not result:
+      result.append(RESULT_NIL)
+      signs.append(1)
+    result[-1] = copy.deepcopy(result[-1])
+    result[-1].flags[flag] = value
 
   def GetNotNone(dict, key, default):
     """Like {}.get(), but return default if the key is present with value None"""
@@ -539,7 +626,7 @@ def ParseExpr(expr, sym, parent_env):
 	           int(GetNotNone(dict, 'sides', 1)),
 	           DynEnv(env, 'reroll_if', reroll_pred)), sign)
     elif dict['number']:
-      Add(Result(int(matched), matched, {}), sign)
+      Add(Result(int(matched), '', {}), sign)
     elif dict['symbol']:
       expansion = LookupSym(matched, sym, start==0)
       if expansion is None:
@@ -567,7 +654,7 @@ def ParseExpr(expr, sym, parent_env):
         return str(ParseExpr(match.group(1), sym, env).value())
       # set flag, including double quotes
       new_string = INTERPOLATE_RE.sub(eval_string, matched)
-      result.flags[new_string] = True
+      AddFlag(new_string, True)
     elif dict['func']:
       fname = dict['name']
       fexpr = dict['expr']
@@ -619,14 +706,50 @@ def ParseExpr(expr, sym, parent_env):
 	if ntimes > 100:
 	  raise ParseError('ntimes: number too big')
 	rolls = ResultList([ParseExpr(fexpr, sym, env) for _ in xrange(ntimes)])
-	return rolls
+	Add(rolls, sign)
       else:
         raise ParseError('Unknown function "%s(%s)"' % (fname, ','.join(['_']*len(args))))
 
     start += match_end
 
-  result.stats = env['stats']
-  return result
+  # No results? Set to NIL
+  if not result:
+    result.append(RESULT_NIL)
+    signs.append(1)
+
+  # If first item is negative, need to subtract it from zero (NIL will do)
+  if signs[0] < 0:
+    result.insert(0, RESULT_NIL)
+    signs.insert(0, 1)
+
+  for new_result, sign in zip(result[1:], signs[1:]):
+    result[0] = copy.deepcopy(result[0])
+    if result[0].is_list:
+      # flatten into scalar
+      result[0] = result[0].to_scalar()
+    if new_result.is_list:
+      new_result = new_result.to_scalar()
+    result[0]._value += sign * new_result.value()
+    result[0].constant_sum += sign * new_result.constant_sum
+    if new_result.is_numeric():
+      result[0]._is_numeric = True
+    new_detail = new_result._detail
+    if new_detail and not new_result.is_constant:
+      if sign < 0:
+	result[0]._detail = result[0]._detail + '-' + new_detail
+      else:
+        if result[0]._detail:
+	  result[0]._detail = result[0]._detail + '+' + new_detail
+	else:
+	  result[0]._detail = new_detail
+    if not new_result.is_constant:
+      result[0].is_constant = False
+    result[0].flags.update(new_result.flags)
+
+  # Add stats for debugging
+  result[0].stats = env['stats']
+  #logging.debug('Result for %s: %s', repr(expr), repr(result[0]))
+  return result[0]
 
 if __name__ == '__main__':
   random.seed(2) # specially picked, first d20 gets a 20
@@ -652,6 +775,7 @@ if __name__ == '__main__':
     'fact$': Function(['n'], 'if(n <= 1, n, mul(n, fact(n - 1)))'),
     'fib$': Function(['n'], 'if(n==0, 0, if(n==1, 1, fib(n-1) + fib(n-2)))'),
     'a$bb$c': Function(['x', 'y'], 'x+y'),
+    'bw$$': Function(['n', 'TN'], 'with(roll=sort(d(n, 6)), if(n==0, 0, count(>=TN, roll) + bw(count(==6, roll), TN)))'),
     'W': '1',
     'Sword': 'd(W, 8) + StrMod + Enh',
     'Dagger': 'd(W, 4) + StrMod + Enh',
@@ -675,7 +799,8 @@ if __name__ == '__main__':
   }
 
   tests = [
-    ('d20+5', 'Nat20'),
+    ('0', r'/^=0$/'),
+    ('d20+5', 'd20(20)+5=25:Nat20:Critical'),
     ('42', 42),
     ('  42   ', 42),
     ('2+4', 6),
@@ -684,7 +809,7 @@ if __name__ == '__main__':
     ('5 - Armor + Trained', 8),
     ('5 + NegArmor + Trained', 8),
     ('2 - NegArmor', 4),
-    ('d20+12', 31),
+    ('d20+12', 'd20(19)+12=31:Critical'),
     ('3d6', 8),
     ('12d6b2', 51),
     ('Deft Strike', "d4(2)+4=6"),
@@ -696,40 +821,58 @@ if __name__ == '__main__':
     ('max(3d6) + 3d6 + avg(3d6b3) + max(d8)', 50.5),
     ('avg(d6b2)', 4.0),
     ('avg(explode(d6))', 4.2),
-    ('12x(Bash)', ''),
-    ('3x(Deft Strike)', ''),
+    ('12x(Bash)', 'd20(8)+7=15, d20(20)+7=27:Nat20:Critical,'),
+    ('3x(Deft Strike)', '(d4(4)+4=8, d4(3)+4=7, d4(2)+4=6)=21'),
     ('div(7, 2)', 3),
     ('div(3d6+5, 2)', 9),
     ('d20+5 "Prone"', 16),
     ('42 "Push {StrMod} squares"', 42),
     ('Bash', 24),
     ('bonus(Bash)', 7),
-    ('Hometown', '="New York"'),
     ('div(Bash, 0)', '/0=DivideByZero'),
     ('mul(Level, 2)', 6),
     ('mul(d6, d10)', 30),
     ('count(>=4, 10d6)', 5),
     ('count(>=5, explode(10d4))', 3),
     ('count(>=5, explode(d(10,4)))', 3),
-    ('lowest(6d6)', 2),
-    ('highest(2d6 + 2)', 5),
-    ('highest(3x(3d6))', 10),
-    ('lowest(2x(d20+12))', 15),
-    ('e(10, 7)', 2),
-    ('10es7', 2),
+    ('e(10, 7)', 3),
+    ('10es7', 1),
+    ('with(Weapon=Dagger, Strike)', 7),
+    ('with(Weapon=Dagger, Destroy)', 11),
+    ('with(Weapon=Dagger+1, Destroy)', 10),
+    ('Strike', 7),
+    ('Destroy', 10),
+    ('with(W=3, with(Enh=4, Strike))', 25),
+
+    ('low(6d6)', 2),
+    ('high(2d6) + 2', 6),
+    ('high(2d6 + 2)', r'/ParseError.*not a list/'),
+    ('high(3x(3d6))', 12),
+    ('low(2x(d20+12))', 13),
+    ('top(2, 3d20)', '3d20(/*2*/,3,12)=15'),
+    ('top(2, 3x(d20+4))', '(/*d20(1)+4=5*/,'),
+    ('len(3d6)', 3),
+    ('len(3x(d20))', 3),
+    ('sort(6d10)', '6d10(3,5,6,7,8,9)=38'),
+    ('slice(6d10, 2)', '6d10(3,5,/*6*/,/*1*/,/*1*/,/*5*/)=8'),
+    ('slice(6d10, -2)', '6d10(/*2*/,/*8*/,/*3*/,/*1*/,2,3)=5'),
+    ('slice(6d10, 0, 1)', '6d10(3,/*6*/,/*5*/,/*4*/,/*7*/,/*3*/)=3'),
+    ('pick(<3, 10d10)', 3),
+
+    ('bw(12,4)', 8),
+    ('bw(12,4)', 3),
+    ('bw(8,4)', 2),
+    ('bw(7,4)', 7),
+    ('bw(6,4)', 2),
+    ('bw(5,4)', 4),
+
+    ('Hometown', '="New York"'),
     ('fact(5)', 120),
     ('fib(7)', 13),
     ('if(not(and(1!=2, 1==2)), 100, 200)', 100),
-    ('with(Weapon=Dagger, Strike)', 7),
-    ('with(Weapon=Dagger, Destroy)', 10),
-    ('with(Weapon=Dagger+1, Destroy)', 8),
-    ('Strike', 7),
-    ('Destroy', 9),
-    ('with(W=3, with(Enh=4, Strike))', 27),
-
     ('if(1==1, "with,comma", "more,comma")', '="with,comma"'),
     ('if(1==2, 3 "with,comma", 4 "unbalanced)paren")', '=4:"unbalanced)paren"'),
-    ('if(1==2, 3, mul(2,3)', "Missing closing parenthesis"),
+    ('if(1==2, 3, mul(2,3)', '/ParseError.*Missing closing parenthesis/'),
 
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
@@ -756,8 +899,16 @@ if __name__ == '__main__':
     except ParseError, e:
       result_str = str(e)
     status='FAIL'
+    if hasattr(expected, 'iterfind'):
+      if expected.search(str):
+        status='pass'
     if isinstance(expected, str):
-      if expected in result_str:
+      m = re.search(r'^/(.*)/$', expected)
+      if m:
+        pattern = re.compile(m.group(1))
+	if pattern.search(result_str):
+	  status='pass'
+      elif expected in result_str:
         status='pass'
     else:
       if result_val == expected:
