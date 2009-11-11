@@ -180,6 +180,19 @@ if __name__ == '__main__':
     DailyDamage: 2W + StrMod + DexMod 
   ''').save()
 
+  charsheet.CharSheet('''
+    Name: Params
+    Broadsword(n): d8+n
+    Broadsword: Broadsword(0)
+
+    hit(roll, modifiedtarget): if(roll>=modifiedtarget, roll "hit, bonus={bonus}", roll "miss by {modifiedtarget - roll}, bonus={bonus}")
+    bonus: 0 # default value
+    attack(target): hit(d100, target + bonus)
+    attack(target)b(newBonus): with(bonus=newBonus, attack(target))
+    attackT(target)b(bonus): attack(target)
+    attack: attack(50) # default target 
+  ''').save()
+
   tests = [
     '[Warrior: Axe]',
     '[Warrior: Speed]',
@@ -208,6 +221,8 @@ if __name__ == '__main__':
     '[MultiWeapon: b+dx]',
     '[a]',
     '[a+fact(3)]',
+    '[Params: Broadsword(5)] [Params: Broadsword4] [Params: Broadsword]',
+    '[Params: attack(80)] [Params: attack] [Params: attackT90b2] [Params: attack70b7]',
   ]
   
   for input in tests:
