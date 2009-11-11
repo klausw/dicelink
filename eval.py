@@ -267,7 +267,7 @@ def DynEnv(env, key, val):
 def Val(expr, sym, env):
   return ParseExpr(expr, sym, env).value()
 
-def fn_repeat(expr, sym, num, fexpr):
+def fn_repeat(sym, env, num, fexpr):
   ntimes = ParseExpr(num, sym, env).value()
   if ntimes <= 0:
     raise ParseError("repeat: repeat count must be >0")
