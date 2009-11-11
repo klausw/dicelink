@@ -502,18 +502,18 @@ def fn_with(sym, env, binding, expr):
     rhs_val = ParseExpr(rhs, sym, env)
   return eval_with(sym, env, {lhs: rhs_val}, expr)
 
+def fn_val(sym, env, expr):
+  return Result(ParseExpr(expr, sym, env).value(), '', {})
+
 FUNCTIONS = {
   'max': fn_max,
   'avg': fn_avg,
   'mul': fn_mul,
   'div': fn_div,
   'bonus': fn_bonus,
-
-  # new, document!
   'repeat': fn_repeat,
   'd': fn_d,
   'explode': fn_explode,
-  'reroll_if': fn_reroll_if,
   'count': fn_count,
   'len': fn_len,
   'slice': fn_slice,
@@ -529,6 +529,9 @@ FUNCTIONS = {
   'and': fn_and,
   'not': fn_not,
   'with': fn_with,
+  # new, document!
+  'val': fn_val,
+  'reroll_if': fn_reroll_if,
 }
 
 DOLLAR_RE = re.compile(r'\$')
@@ -877,6 +880,7 @@ if __name__ == '__main__':
     ('bw(5,4)', 4),
 
     ('repeat(3, d20+2)', '(d20(9)+2=11, d20(14)+2=16, d20(19)+2=21:Critical)=48'),
+    ('val(3d6)', r'/^=10$/'),
 
     ('Hometown', '="New York"'),
     ('fact(5)', 120),
