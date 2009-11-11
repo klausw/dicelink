@@ -111,7 +111,7 @@ def OnBlipSubmitted(properties, context):
     def replacer(start, end, texts):
       return SetTextWithAttributes(doc, start, end, texts)
     def defaultgetter():
-      return persist.GetDefaultChar(creator)
+      return persist.GetDefaultChar(modifier)
     controller.handle_text(txt, defaultgetter, replacer)
 #  elif ':' in txt:
 #    logging.debug('interact: %s' % txt)
