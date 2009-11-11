@@ -16,6 +16,7 @@ EXPR_RE = re.compile(r'''
   ''', re.X)
 
 PARENS_RE = re.compile(r'\(.*\)')
+WORD_RE = re.compile(r'(\w+)')
 
 def handle_text(txt, defaultgetter, replacer):
   # calls replacer(start, end, texts) => offset_delta
@@ -37,6 +38,17 @@ def handle_text(txt, defaultgetter, replacer):
       if not char:
 	out_lst.append(['"%s" not found' % charname, ('style/color', 'red')])
 
+    # Expand abbreviations
+    expansions = []
+    if char:
+      for ex in reversed(list(WORD_RE.finditer(expr))):
+	expand = char.shortcuts.get(ex.group())
+	logging.debug('expansion: w=%s, ex=%s', repr(ex.group()), repr(expand))
+	if expand:
+	  expr = expr[:ex.start()] + expand + expr[ex.end():]
+	  expansions.append((expand, ex.start(), ex.end()))
+    expansions = reversed(expansions)
+
     # no longer needed, things should get unescaped on input and escaped on output outside the controller
     #expr = expr.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
     out_lst += handle_expr(char, expr)
@@ -44,6 +56,9 @@ def handle_text(txt, defaultgetter, replacer):
       if char and not m.group(1):
 	offset += replacer(m.start()+1+offset, m.start()+1+offset,
 	  [[char.name + ':']])
+      for expand, start, end in expansions:
+        offset += replacer(start+offset+m.start(2), end+offset+m.start(2), [[expand]])
+
       out_lst = [[' ']] + out_lst
       offset += replacer(m.end(2)+offset, m.end(2)+offset, out_lst)
 
@@ -119,7 +134,7 @@ if __name__ == '__main__':
 
   charsheet.CharSheet('''
     Name: Test
-    Attack: d20 + 5 ">4"
+    a:Attack: d20 + 5 ">4"
     e(NumDice, TN): count(>= TN, explode(d(NumDice, 6)))
     (NumDice)e(TN): count(>= TN, explode(d(NumDice, 6)))
     fact(n): if(n <= 1, n, mul(n, fact(n - 1)))
@@ -160,8 +175,8 @@ if __name__ == '__main__':
     StrMod: 4
     DexMod: 2
 
-    Basic: 1W + StrMod
-    DexDamage: 1W + DexMod
+    b:Basic: 1W + StrMod
+    dx:DexDamage: 1W + DexMod
     DailyDamage: 2W + StrMod + DexMod 
   ''').save()
 
@@ -188,6 +203,11 @@ if __name__ == '__main__':
     '[MultiWeapon: with(Weapon=Maul, DailyDamage)]',
     '[MultiWeapon: DailyDamage]',
     '[MultiWeapon: with(Weapon=Dagger, DexDamage)]',
+    '[MultiWeapon: b]',
+    '[MultiWeapon: b + 2]',
+    '[MultiWeapon: b+dx]',
+    '[a]',
+    '[a+fact(3)]',
   ]
   
   for input in tests:

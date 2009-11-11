@@ -8,12 +8,16 @@ import roll
 # Long Name: complex value; Another Name: another value
 ITEMS_RE=re.compile(r'''
   \s*
-  (
+  (?:
+    (?P<abbr> \w+ )
+    :
+  )?
+  (?P<sym>
     [(]?[_a-z][-\w (),]*
   )
   :
   \s*
-  (
+  (?P<exp>
     [^;\n]*
   )
 ''', re.X | re.I)
@@ -57,7 +61,8 @@ class CharSheet(object):
     self.dict = {}
     self.keys = []
     self.span = {}
-    for start, end, key, value in itemsFromText(txt):
+    self.shortcuts = {}
+    for start, end, abbr, key, value in itemsFromText(txt):
       if NUMBER_RE.match(value):
         value = int(value)
       elif '(' in key:
@@ -79,6 +84,8 @@ class CharSheet(object):
       self.keys.append(key)
       self.span[key] = (start, end)
       self.dict[key] = value
+      if abbr:
+	self.shortcuts[abbr] = key
     self.name = self.dict.get('Name', '')
 
   def save(self):
@@ -144,9 +151,9 @@ def itemsFromText(orig_txt):
 
   # save items and positions
   for m in ITEMS_RE.finditer(txt):
-    start, end = m.start(1), m.end(2)
-    key, value = m.groups()
-    yield start, end, key, value
+    start, end = m.start(2), m.end(3)
+    abbr, key, value = m.groups()
+    yield start, end, abbr, key, value
 
 
 INTERACT_ACTION_RE = re.compile(r'(.*?) \s+ (attacks?|damages?|heals?) \s+ (.*) : \s* (.*)', re.X)
