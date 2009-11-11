@@ -470,6 +470,22 @@ def boolean(sym, env, cond):
   else:
     return False
 
+def fn_ifbound(sym, env, sym1, sym2, iftrue, iffalse):
+  sym1 = sym1.strip()
+  sym2 = sym2.strip()
+  val1 = sym.get(sym1)
+  val2 = sym.get(sym2)
+  if not val1:
+    raise ParseError('"%s" is not a symbol' % sym1)
+  if not val2:
+    raise ParseError('"%s" is not a symbol' % sym2)
+  val1 = val1.strip()
+  val2 = val2.strip()
+  if val1 == val2 or val1 == sym2:
+    return ParseExpr(iftrue, sym, env)
+  else:
+    return ParseExpr(iffalse, sym, env)
+
 def fn_if(sym, env, cond, iftrue, iffalse):
   if boolean(sym, env, cond):
     return ParseExpr(iftrue, sym, env)
@@ -530,6 +546,7 @@ FUNCTIONS = {
   'not': fn_not,
   'with': fn_with,
   # new, document!
+  'ifbound': fn_ifbound,
   'val': fn_val,
   'reroll_if': fn_reroll_if,
 }
@@ -790,11 +807,12 @@ if __name__ == '__main__':
     'a$bb$c': Function(['x', 'y'], 'x+y'),
     'bw$$': Function(['n', 'TN'], 'with(roll=sort(d(n, 6)), if(n==0, 0, count(>=TN, roll) + bw(count(==6, roll), TN)))'),
     'W': '1',
-    'Sword': 'd(W, 8) + StrMod + Enh',
-    'Dagger': 'd(W, 4) + StrMod + Enh',
+    'Sword': 'd(W, 8) + 4',
+    'Dagger': 'd(W, 4) + 2',
+    '$W': Function(['n'], 'with(W=n, Weapon)'),
     'Weapon': 'Sword',
-    'Strike': 'Weapon',
-    'Destroy': 'with(W=2, Weapon)'
+    'Strike': '1W + StrMod',
+    'Destroy': '2W + StrMod'
   }
 
   sym_tests = [
@@ -853,9 +871,12 @@ if __name__ == '__main__':
     ('with(Weapon=Dagger, Strike)', 7),
     ('with(Weapon=Dagger, Destroy)', 11),
     ('with(Weapon=Dagger+1, Destroy)', 10),
-    ('Strike', 7),
-    ('Destroy', 10),
-    ('with(W=3, with(Enh=4, Strike))', 25),
+    ('Strike', 9),
+    ('Destroy', 12),
+    ('with(Enh=4, 3W + StrMod)', 25),
+    ('ifbound(Weapon, Sword, 1 "yes", 0 "no")', '=1:"yes"'),
+    ('with(Weapon=Sword, ifbound(Weapon, Sword, 1 "yes", 0 "no"))', '=1:"yes"'),
+    ('with(Weapon=Dagger, ifbound(Weapon, Sword, 1 "yes", 0 "no"))', '=0:"no"'),
 
     ('low(6d6)', 2),
     ('high(2d6) + 2', 6),
