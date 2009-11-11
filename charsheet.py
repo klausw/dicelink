@@ -10,13 +10,11 @@ ITEMS_RE=re.compile(r'''
   \s*
   (?:
     (?P<abbr> \w+ )
-    :
+    : \s*
   )?
   (?P<sym>
     [(]?[_a-z][-\w (),]*
-  )
-  :
-  \s*
+  ) : \s*
   (?P<exp>
     [^;\n]*
   )
