@@ -267,6 +267,15 @@ def DynEnv(env, key, val):
 def Val(expr, sym, env):
   return ParseExpr(expr, sym, env).value()
 
+def fn_repeat(expr, sym, num, fexpr):
+  ntimes = ParseExpr(num, sym, env).value()
+  if ntimes <= 0:
+    raise ParseError("repeat: repeat count must be >0")
+  out = []
+  for i in xrange(ntimes):
+    out.append(ParseExpr(fexpr, sym, env))
+  return ResultList(out)
+
 def fn_max(sym, env, fexpr):
   return ParseExpr(fexpr, sym, DynEnv(env, 'max', True))
 
@@ -501,6 +510,7 @@ FUNCTIONS = {
   'bonus': fn_bonus,
 
   # new, document!
+  'repeat': fn_repeat,
   'd': fn_d,
   'explode': fn_explode,
   'reroll_if': fn_reroll_if,
@@ -865,6 +875,8 @@ if __name__ == '__main__':
     ('bw(7,4)', 7),
     ('bw(6,4)', 2),
     ('bw(5,4)', 4),
+
+    ('repeat(3, d20+2)', '(d20(9)+2=11, d20(14)+2=16, d20(19)+2=21:Critical)=48'),
 
     ('Hometown', '="New York"'),
     ('fact(5)', 120),
