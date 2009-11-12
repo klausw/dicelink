@@ -585,6 +585,9 @@ def fn_range(sym, env, e1, e2=None, e3=None):
   values = [Result(x, '', {}, is_constant=True) for x in rg]
   return ResultList(values)
 
+def fn_conflicttest(sym, env, expr):
+  return Result(42, 'builtin', {})
+
 FUNCTIONS = {
   'max': fn_max,
   'avg': fn_avg,
@@ -613,6 +616,7 @@ FUNCTIONS = {
   'cond': fn_cond,
   'lval': fn_lval,
   # undocumented
+  'conflicttest': fn_conflicttest,
   'ifbound': fn_ifbound,
   'reroll_if': fn_reroll_if,
   'list': fn_list,
@@ -886,7 +890,8 @@ if __name__ == '__main__':
     '$W': Function(['n'], 'with(W=n, Weapon)'),
     'Weapon': 'Sword',
     'Strike': '1W + StrMod',
-    'Destroy': '2W + StrMod'
+    'Destroy': '2W + StrMod',
+    'conflicttest$': Function(['x'], '"my value"'),
   }
 
   sym_tests = [
@@ -992,12 +997,14 @@ if __name__ == '__main__':
     ('with(x="a" "b", y="b" "a", if(x==y, 1, 2))', 1),
     ('with(x="a" "b", y="a", if(x==y, 1, 2))', 2),
     ('with(x="a" "b", y="a:b", if(x==y, 1, 2))', 2),
+    ('with(x=1, y=2, with(x=y, y=x, "x is {x}, y is {y}"))', 'x is 2, y is 1'),
     ('len(list(1,2,3,4))', 4),
     ('len(pick(>=3, list(1,2,3,4)))', 2),
     ('nth(3, list(10,11,12,13))', 13),
     ('cond(1==0, "zero", 1==1, "one", 1==2, "two")', '"one"'),
     ('cond(3==0, "zero", 3==1, "one", 3==2, "two")', r'/^=$/'),
     ('cond(3==0, "zero", 3==1, "one", 3==2, "two", "other")', '"other"'),
+    ('conflicttest(3)', 'builtin'),
 
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
