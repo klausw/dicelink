@@ -21,13 +21,13 @@ EXPR_RE = re.compile(r'''
 PARENS_RE = re.compile(r'\(.*\)')
 WORD_RE = re.compile(r'(\w+)')
 
-def handle_text(txt, defaultgetter, replacer):
+def handle_text(txt, defaultgetter, replacer, storage):
   # calls replacer(start, end, texts) => offset_delta
   offset = 0
   for mexpr in EXPR_RE.finditer(txt):
     out_lst = []
     log_info = []
-    expr = mexpr.group(2)
+    expr = mexpr.group(2).strip()
     expr_outside_parens = PARENS_RE.sub('', expr)
     if '=' in expr_outside_parens or 'ParseError' in mexpr.group():
       continue
@@ -38,21 +38,23 @@ def handle_text(txt, defaultgetter, replacer):
 
     if mexpr.group(1):
       charname = mexpr.group(1).strip()
-      if charname == '':
-        # "[:" prefix for special commands
-	pass
     else:
       charname = defaultgetter()
 
-    sym, char, template, out, log = get_char_and_template(charname)
-    out_lst += out
-    log_info += log
+    if charname == '':
+      # "[:" prefix for special commands
+      pass
+    else:
+      sym, char, template, out, log = get_char_and_template(storage, charname)
+      out_lst += out
+      log_info += log
 
-    expr, expansions = get_expansions(expr, char, template)
+      expr, expansions = get_expansions(expr, char, template)
 
-    out, log = handle_expr(sym, expr)
-    out_lst += out
-    log_info += log
+      out, log = handle_expr(sym, expr)
+      out_lst += out
+      log_info += log
+
     if out_lst:
       if char and not charname:
 	offset += replacer(name_start+offset, name_start+offset,
@@ -67,13 +69,13 @@ def handle_text(txt, defaultgetter, replacer):
 
 STRIKETHROUGH_RE = re.compile(r'\/\* (.*?) \*\/', re.X)
 
-def get_char_and_template(charname):
+def get_char_and_template(storage, charname):
   out = []
   log = []
   sym = {}
   char = None
   if charname:
-    char = charsheet.GetChar(charname)
+    char = charsheet.GetChar(storage, charname)
     if char:
       sym = char.dict
       log.append('Char "%s" (%d),' % (char.name, len(char.dict)))
@@ -83,7 +85,7 @@ def get_char_and_template(charname):
   template = None
   if '_template' in sym:
     template_name = sym['_template'].replace('"', '').strip()
-    template = charsheet.GetChar(template_name)
+    template = charsheet.GetChar(storage, template_name)
     if template:
       logging.debug('Using template "%s" for "%s"' % (template.name, char.name))
       for k, v in template.dict.iteritems():
@@ -158,7 +160,7 @@ if __name__ == '__main__':
   random.seed(2) # specially picked, first d20 gets a 20
   logging.getLogger().setLevel(logging.DEBUG)
 
-  charsheet.SetCharacterAccessors(charsheet.GetInMemoryCharacter, charsheet.SaveInMemoryCharacter)
+  storage = charsheet.CharacterAccessor(charsheet.GetInMemoryCharacter, charsheet.SaveInMemoryCharacter)
 
   charsheet.CharSheet('''
     Name: Test
@@ -170,7 +172,7 @@ if __name__ == '__main__':
     BW(n, TN): with(roll=sort(d(n, 6)), if(n==0, 0, count(>=TN, roll) + BW(count(==6, roll), TN)))
     SpecialResult(n): if(or(n<=8, n>=12), n "Nothing", if(or(n==9, n==12), n "Special Hit", n "Hit"))
     SpecialHit: SpecialResult(3d6)
-  ''').save()
+  ''').save(storage)
 
   charsheet.CharSheet('''
     Name: D20Template
@@ -181,7 +183,7 @@ if __name__ == '__main__':
     Jump: d20 + JumpSkill + StrMod
     Speed: 6
     CA: Combat Advantage: 2
-  ''').save()
+  ''').save(storage)
   
   charsheet.CharSheet('''
     Name: Warrior
@@ -190,7 +192,7 @@ if __name__ == '__main__':
     Axe: d12 + StrMod # Can refer to values from the template
     Warrior's Strike: d8+5
     Double Strike: Warrior's Strike + Warrior's Strike
-  ''').save()
+  ''').save(storage)
 
   charsheet.CharSheet('''
     Name: MultiWeapon
@@ -212,7 +214,7 @@ if __name__ == '__main__':
     DailyDamage: 2W + StrMod + DexMod 
     #with sword:with(Weapon=Sword, $)
     #lval $ d6
-  ''').save()
+  ''').save(storage)
 
   charsheet.CharSheet('''
     Name: Params
@@ -225,13 +227,13 @@ if __name__ == '__main__':
     attack(target)b(newBonus): with(bonus=newBonus, attack(target))
     attackT(target)b(bonus): attack(target)
     attack: attack(50) # default target 
-  ''').save()
+  ''').save(storage)
 
   charsheet.CharSheet('''
     Name: BadTemplate
     _template: "Missing"
     Attack: d8
-  ''').save()
+  ''').save(storage)
 
   tests = [
     '[Warrior:Axe]',
@@ -295,6 +297,6 @@ if __name__ == '__main__':
       out_msg[0] = before + new + after
       return len(new) - (end - start)
 
-    handle_text(input, defaultgetter, replacer)
+    handle_text(input, defaultgetter, replacer, storage)
     print out_msg[0]
 

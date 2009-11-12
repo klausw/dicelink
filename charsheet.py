@@ -25,21 +25,22 @@ NUMBER_RE=re.compile(r'^\d+$')
 ATTACK_ROLL_RE=re.compile(r'(\S+) \s+ vs \s+ (\w+)', re.X)
 DAMAGE_ROLLS_RE=re.compile(r',? \s* (\S+) \s+ (.*)', re.X)
 
-characters = {}
-character_getter = None
-character_setter = None
+CHARACTERS = {}
 
 def GetInMemoryCharacter(name):
-  return characters.get(name, None)
+  return CHARACTERS.get(name, None)
 
 def SaveInMemoryCharacter(sheet):
-  characters[sheet.name] = sheet
+  CHARACTERS[sheet.name] = sheet
 
-def SetCharacterAccessors(getter, setter):
-  global character_getter
-  global character_setter
-  character_getter = getter
-  character_setter = setter
+class CharacterAccessor(object):
+  def __init__(self, get, put, list=None):
+    self.get = get # get(name) => sheet
+    self.put = put # put(sheet) => None
+    if list:
+      self.list = list # list(name) => [txt, txt, ...]
+    else:
+      self.list = lambda _: []
 
 class UnresolvedException(Exception):
   def __init__(self, msg):
@@ -48,8 +49,8 @@ class UnresolvedException(Exception):
   def __str__(self):
     return 'Unresolved: %s' % msg
 
-def GetChar(name):
-  return character_getter(name)
+def GetChar(accessor, name):
+  return accessor.get(name)
 
 PROTOTYPE_RE = re.compile(r'\s* \( \s* (.*?) \s* \) \s*', re.X)
 
@@ -86,8 +87,8 @@ class CharSheet(object):
 	self.shortcuts[abbr] = key
     self.name = self.dict.get('Name', '')
 
-  def save(self):
-    character_setter(self)
+  def save(self, accessor):
+    accessor.put(self)
 
   def hit(self, attack, defense):
     to_meet = self.dict.get(defense, None)
@@ -163,7 +164,7 @@ def GetAttackMatches(txt):
     yield subject, verb, object, spec
 
 
-def Interact(txt):
+def Interact(storage, txt):
   out_public = []
   out_private = []
 
@@ -174,11 +175,11 @@ def Interact(txt):
     out_public.append(msg)
 
   for subject, verb, object, spec in GetAttackMatches(txt):
-    attacker = GetChar(subject)
+    attacker = GetChar(storage, subject)
     if not attacker:
       OutPrivate('Attacker %s not found' % attacker)
       continue
-    target = GetChar(object)
+    target = GetChar(storage, object)
     if not target:
       OutPrivate('Target %s not found' % target)
       continue
@@ -199,7 +200,7 @@ def Interact(txt):
 	return
       target.dict[tag] += dmg
       new_val = target.dict[tag]
-      target.save()
+      target.save(storage)
       OutPrivate('%s, applies %s %s=%s [%s] (total %s, was %s).' % (msg, tag, dmg_roll, dmg, detail, new_val, old_val))
       OutPublic('%s, applies %s %s (total %s, was %s).' % (msg, tag, dmg, new_val, old_val))
 
@@ -238,7 +239,7 @@ def Interact(txt):
 if __name__ == '__main__':
   random.seed(42)
 
-  SetCharacterAccessors(GetInMemoryCharacter, SaveInMemoryCharacter)
+  storage = CharacterAccessor(GetInMemoryCharacter, SaveInMemoryCharacter)
 
   CharSheet('''Name: Flint
   HP: 31; Damage: 0
@@ -249,14 +250,14 @@ if __name__ == '__main__':
   # Foo=1; HP: 0
 
   Notes go here.
-  ''').save()
+  ''').save(storage)
 
   CharSheet('''Name: Orc A
   HP: 20; Damage: 0
   AC: 17; Ref: 12; Fort: 16; Will: 11
   Bash: D20+11 vs AC, Damage D8+5
 
-  More notes.''').save()
+  More notes.''').save(storage)
 
   actions = [
   	'Flint attacks Orc A: d20+5 vs AC',
@@ -268,12 +269,12 @@ if __name__ == '__main__':
 	'Flint damages Orc A: 17',
   ]
   for action in actions:
-    print Interact(action)
+    print Interact(storage, action)
   
 #  while flint.dict['Damage'] < flint.dict['HP'] and orc.dict['Damage'] < orc.dict['HP']:
 #    power = ['Deft Strike', 'Piercing Strike'][random.randint(0, 1)]
 #    resolve(flint, power, orc)
 #    resolve(orc, 'Bash', flint)
 
-  print GetChar('Flint')
-  print GetChar('Orc A')
+  print GetChar(storage, 'Flint')
+  print GetChar(storage, 'Orc A')

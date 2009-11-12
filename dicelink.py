@@ -131,9 +131,8 @@ class Roll(webapp.RequestHandler):
     def defaultgetter():
       return persist.GetDefaultChar(wave_uid)
 
-    charsheet.SetCharacterAccessors(getter, saver)
-    controller.handle_text(content, defaultgetter, replacer)
-
+    storage = charsheet.CharacterAccessor(getter, saver)
+    controller.handle_text(content, defaultgetter, replacer, storage)
 
     need_escape_end.append(len(out_msg[0]))
     offset = 0

@@ -106,7 +106,7 @@ def OnBlipSubmitted(properties, context):
       return None
       
   # FIXME: not thread safe? Use charsheet factory, or just factor out load/save better?
-  charsheet.SetCharacterAccessors(WaveCharacterGetter, WaveCharacterSaver)
+  storage = charsheet.SetCharacterAccessor(WaveCharacterGetter, WaveCharacterSaver)
 
   # update info from character sheets if present - currently disabled
   if 'dicelink: Status' in txt:
@@ -124,7 +124,7 @@ def OnBlipSubmitted(properties, context):
       return SetTextWithAttributes(doc, start, end, texts)
     def defaultgetter():
       return persist.GetDefaultChar(modifier)
-    controller.handle_text(txt, defaultgetter, replacer)
+    controller.handle_text(txt, defaultgetter, replacer, storage)
 #  elif ':' in txt:
 #    logging.debug('interact: %s' % txt)
 #    out_public, out_private = charsheet.Interact(txt)
