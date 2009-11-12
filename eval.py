@@ -130,7 +130,7 @@ class Result(object):
     maybe_value = []
     if self.is_numeric():
       maybe_value = [str(self.value())]
-    return ':'.join(maybe_value + self.flags.keys())
+    return ':'.join(maybe_value + sorted(self.flags.keys()))
   def secretval(self):
     if 'Nat20' in self.flags:
       return 'Nat20'
@@ -266,6 +266,13 @@ def DynEnv(env, key, val):
 
 def Val(expr, sym, env):
   return ParseExpr(expr, sym, env).value()
+
+def ValOrString(expr, sym, env):
+  val = ParseExpr(expr, sym, env)
+  if val.is_numeric():
+    return val.value()
+  else:
+    return val.publicval()
 
 def fn_repeat(sym, env, num, fexpr):
   ntimes = ParseExpr(num, sym, env).value()
@@ -439,7 +446,7 @@ def predicate(sym, env, expr):
   #logging.debug('rhs=%s', rhs)
   if lhs:
     raise ParseError('Bad predicate, unexpected "%s"' % lhs)
-  thresh = Val(rhs, sym, env)
+  thresh = ValOrString(rhs, sym, env)
   return lambda x: op(x, thresh)
 
 def fn_reroll_if(sym, env, filter, fexpr):
@@ -467,8 +474,8 @@ def boolean(sym, env, cond):
     ret = ParseExpr(cond, sym, env)
     return (ret.value() != 0)
   lhs, op, rhs = relation(sym, env, cond)
-  lval = Val(lhs, sym, env)
-  rval = Val(rhs, sym, env)
+  lval = ValOrString(lhs, sym, env)
+  rval = ValOrString(rhs, sym, env)
   if op(lval, rval):
     return True
   else:
@@ -525,14 +532,21 @@ def fn_not(sym, env, arg):
     return RESULT_FALSE
   return RESULT_TRUE
 
-def fn_with(sym, env, binding, expr):
-  lhs, rhs = binding.split('=')
-  lhs = lhs.strip()
-  rhs = rhs.strip()
-  rhs_val = sym.get(rhs)
-  if not rhs_val:
-    rhs_val = ParseExpr(rhs, sym, env)
-  return eval_with(sym, env, {lhs: rhs_val}, expr)
+def fn_with(sym, env, *args):
+  if len(args) < 2:
+    raise ParseError('with() needs at least two arguments')
+  bindings = args[:-1]
+  expr = args[-1]
+  new_env = {}
+  for binding in bindings:
+    lhs, rhs = binding.split('=')
+    lhs = lhs.strip()
+    rhs = rhs.strip()
+    rhs_val = sym.get(rhs)
+    if not rhs_val:
+      rhs_val = ParseExpr(rhs, sym, env)
+    new_env[lhs] = rhs_val
+  return eval_with(sym, env, new_env, expr)
 
 def fn_val(sym, env, expr):
   return Result(ParseExpr(expr, sym, env).value(), '', {})
@@ -891,7 +905,7 @@ if __name__ == '__main__':
 
   tests = [
     ('0', r'/^=0$/'),
-    ('d20+5', 'd20(20)+5=25:Nat20:Critical'),
+    ('d20+5', 'd20(20)+5=25:Critical:Nat20'),
     ('42', 42),
     ('  42   ', 42),
     ('2+4', 6),
@@ -912,7 +926,7 @@ if __name__ == '__main__':
     ('max(3d6) + 3d6 + avg(3d6b3) + max(d8)', 50.5),
     ('avg(d6b2)', 4.0),
     ('avg(explode(d6))', 4.2),
-    ('12x(Bash)', 'd20(8)+7=15, d20(20)+7=27:Nat20:Critical,'),
+    ('12x(Bash)', 'd20(8)+7=15, d20(20)+7=27:Critical:Nat20,'),
     ('3x(Deft Strike)', '(d4(4)+4=8, d4(3)+4=7, d4(2)+4=6)=21'),
     ('div(7, 2)', 3),
     ('div(3d6+5, 2)', 9),
@@ -973,6 +987,11 @@ if __name__ == '__main__':
     ('if(1==1, "with,comma", "more,comma")', '="with,comma"'),
     ('if(1==2, 3 "with,comma", 4 "unbalanced)paren")', '=4:"unbalanced)paren"'),
     ('if(1==2, 3, mul(2,3)', '/ParseError.*Missing closing parenthesis/'),
+    ('if("a"=="a", 1, 2)', 1),
+    ('if("a"=="b", 1, 2)', 2),
+    ('with(x="a" "b", y="b" "a", if(x==y, 1, 2))', 1),
+    ('with(x="a" "b", y="a", if(x==y, 1, 2))', 2),
+    ('with(x="a" "b", y="a:b", if(x==y, 1, 2))', 2),
     ('len(list(1,2,3,4))', 4),
     ('len(pick(>=3, list(1,2,3,4)))', 2),
     ('nth(3, list(10,11,12,13))', 13),
