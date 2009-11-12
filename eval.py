@@ -705,7 +705,7 @@ def ParseExpr(expr, sym, parent_env):
   while True:
     env['stats']['objects'] += 1
     if env['stats']['objects'] > MAX_OBJECTS:
-      raise ParseError('Max number of objects exceeded')
+      raise ParseError('Evaluation limit exceeded. Bad recursion?')
     #logging.debug('matcher: expr "%s" <!> "%s', expr[:start], expr[start:])
 
     # Optional +/-

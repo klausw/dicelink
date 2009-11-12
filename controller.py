@@ -36,7 +36,7 @@ def handle_text(txt, defaultgetter, replacer):
     if charname:
       char = charsheet.GetChar(charname)
       if not char:
-	out_lst.append(['"%s" not found' % charname, ('style/color', 'red')])
+	out_lst.append(['"%s" not found. ' % charname, ('style/color', 'red')])
 
     sym = {}
     log_info = []
@@ -55,7 +55,7 @@ def handle_text(txt, defaultgetter, replacer):
 	  sym.setdefault(k, v)
 	log_info.append('template "%s" (%d),' % (template_name, len(template.dict)))
       else:
-	logging.debug('template "%s" for "%s" not found' % (template_name, char.name))
+	logging.debug('template "%s" for "%s" not found. ' % (template_name, char.name))
 
     # Expand abbreviations
     expansions = []
