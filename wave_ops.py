@@ -60,6 +60,18 @@ def OnRobotAdded(properties, context):
   #counter = document.Gadget(GADGET_URL)
   #doc.AppendElement(counter)
 
+def OnBlipDeleted(properties, context):
+  """Invoked when a blip was deleted."""
+  blipId = properties['blipId']
+  blip = context.GetBlipById(blipId)
+  if not blip:
+    logging.warning('Blip "%s" not found in context: %s' % (blipId, repr(context)))
+    return
+  waveId = blip.GetWaveId()
+  waveletId = blip.GetWaveletId()
+
+  # FIXME: persist.DeleteCharacterBlip(waveId, waveletId, blipId)
+
 def OnBlipSubmitted(properties, context):
   """Invoked when a blip was submitted."""
   blipId = properties['blipId']
