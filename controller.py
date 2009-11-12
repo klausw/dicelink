@@ -166,6 +166,8 @@ if __name__ == '__main__':
     _template: "D20Template" # Import
     Strength: 18 # Override the template's value
     Axe: d12 + StrMod # Can refer to values from the template
+    Warrior's Strike: d8+5
+    Double Strike: Warrior's Strike + Warrior's Strike
   ''').save()
 
   charsheet.CharSheet('''
@@ -186,6 +188,8 @@ if __name__ == '__main__':
     b:Basic: 1W + StrMod
     dx: DexDamage: 1W + DexMod
     DailyDamage: 2W + StrMod + DexMod 
+    #with sword:with(Weapon=Sword, $)
+    #lval $ d6
   ''').save()
 
   charsheet.CharSheet('''
@@ -231,6 +235,7 @@ if __name__ == '__main__':
     '[a+fact(3)]',
     '[Params: Broadsword(5)] [Params: Broadsword4] [Params: Broadsword]',
     '[Params: attack(80)] [Params: attack] [Params: attackT90b2] [Params: attack70b7]',
+    "[Warrior: Double Strike] [Warrior: Warrior's Strike]",
   ]
   
   for input in tests:

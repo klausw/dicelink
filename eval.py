@@ -44,10 +44,10 @@ OBJECT_RE = re.compile(r'''
     (?: b (?P<limit> \d+ ) )? 
   ) |
   (?P<symbol>
-    \w*[_A-Za-z]\w*
+    \w*[_A-Za-z][\w']*
     (?:
       \s+
-      [_A-Za-z]\w*
+      [_A-Za-z][\w']*
     )*
   ) |
   (?P<number>
@@ -543,6 +543,10 @@ def fn_lval(sym, env, expr):
     raise ParseError('lval(%s): arg is not a list or dice roll' % expr)
   return ResultList([x for x in arg.items() if x.is_numeric()])
 
+def fn_sval(sym, env, expr):
+  arg = ParseExpr(expr, sym, env)
+  return Result(0, '', arg.flags, is_numeric=False)
+
 def fn_list(sym, env, *args):
   items = []
   for arg in args:
@@ -591,15 +595,20 @@ FUNCTIONS = {
   'and': fn_and,
   'not': fn_not,
   'with': fn_with,
-  # new, document!
-  'ifbound': fn_ifbound,
   'val': fn_val,
-  'reroll_if': fn_reroll_if,
   'cond': fn_cond,
   'lval': fn_lval,
+  # undocumented
+  'ifbound': fn_ifbound,
+  'reroll_if': fn_reroll_if,
   'list': fn_list,
   'nth': fn_nth,
   #'range': fn_range, # needs sanity check for ranges!
+  'sval': fn_sval,
+  # new, document!
+
+  ### planned:
+  # flagged
 }
 
 DOLLAR_RE = re.compile(r'\$')
@@ -955,6 +964,7 @@ if __name__ == '__main__':
     ('val(3d6)', r'/^=10$/'),
     ('lval(3d6)', r'/^\(3, 6, 1\)/'),
     ('lval(top(4, 10d20))', r'/^\(13, 14, 18, 20\)/'),
+    ('sval(3d6 "hit" "marked")', r'/^="hit":"marked"/'),
 
     ('Hometown', '="New York"'),
     ('fact(5)', 120),
