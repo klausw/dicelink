@@ -20,6 +20,7 @@ EXPR_RE = re.compile(r'''
 
 PARENS_RE = re.compile(r'\(.*\)')
 WORD_RE = re.compile(r'(\w+)')
+STRIKETHROUGH_RE = re.compile(r'\/\* (.*?) \*\/', re.X)
 
 def handle_text(txt, defaultgetter, replacer, storage):
   # calls replacer(start, end, texts) => offset_delta
@@ -43,7 +44,9 @@ def handle_text(txt, defaultgetter, replacer, storage):
 
     if charname == '':
       # "[:" prefix for special commands
-      pass
+      out, log = do_special(storage, expr)
+      out_lst += out
+      log_info += log
     else:
       sym, char, template, out, log = get_char_and_template(storage, charname)
       out_lst += out
@@ -67,7 +70,38 @@ def handle_text(txt, defaultgetter, replacer, storage):
 
     logging.info(' '.join(log_info))
 
-STRIKETHROUGH_RE = re.compile(r'\/\* (.*?) \*\/', re.X)
+def do_special(storage, expr):
+  out = []
+  log = []
+
+  def error(msg):
+    out.append(['Error: ' + msg, ('style/color', 'red')])
+    log.append(msg)
+    
+  m = WORD_RE.match(expr)
+  if not m:
+    error('Missing command after "[:"')
+    return out, log
+
+  log.append('special: ' + expr)
+  cmd = m.group(1)
+  arg = expr[m.end():].strip()
+
+  # FIXME: special commands with prototype other than (charname)?
+  # Commands taking a character arg 
+  if not arg:
+    error('Usage: "[:%s CharacterName]"' % cmd)
+    return out, log
+  special_fn = storage.getspecial(cmd)
+  if not special_fn:
+    error('Command "%s" not implemented' % cmd)
+    return out, log
+  for msg, log in special_fn(arg):
+    if msg:
+      out.append(msg)
+    if log:
+      log.append(log)
+  return msg, log
 
 def get_char_and_template(storage, charname):
   out = []

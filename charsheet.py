@@ -41,6 +41,11 @@ class CharacterAccessor(object):
       self.list = list # list(name) => [txt, txt, ...]
     else:
       self.list = lambda _: []
+    self._special = {}
+  def getspecial(self, cmd):
+    return self._special.get(cmd)
+  def add_special(self, cmd, func):
+    self._special[cmd] = func
 
 class UnresolvedException(Exception):
   def __init__(self, msg):
