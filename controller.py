@@ -8,10 +8,13 @@ import eval
 
 EXPR_RE = re.compile(r'''
   \[
-  (?: 
+  (?:        # "CharacterName:", optional
+    \s*
     ([^]:]*)
-  : \s* )?
-  ([^]]*)
+    :
+  )?
+  \s*
+  ( [^]]* )    # expression
   \]
   ''', re.X)
 
@@ -21,70 +24,89 @@ WORD_RE = re.compile(r'(\w+)')
 def handle_text(txt, defaultgetter, replacer):
   # calls replacer(start, end, texts) => offset_delta
   offset = 0
-  for m in EXPR_RE.finditer(txt):
+  for mexpr in EXPR_RE.finditer(txt):
     out_lst = []
-    expr = m.group(2)
+    log_info = []
+    expr = mexpr.group(2)
     expr_outside_parens = PARENS_RE.sub('', expr)
-    if '=' in expr_outside_parens or 'ParseError' in m.group():
+    if '=' in expr_outside_parens or 'ParseError' in mexpr.group():
       continue
-    char = None
     charname = None
-    if m.group(1):
-      charname = m.group(1)
+    name_start = mexpr.start()+1
+    expr_start = mexpr.start(2)
+    expr_end = mexpr.end(2)
+
+    if mexpr.group(1):
+      charname = mexpr.group(1).strip()
+      if charname == '':
+        # "[:" prefix for special commands
+	pass
     else:
       charname = defaultgetter()
-    if charname:
-      char = charsheet.GetChar(charname)
-      if not char:
-	out_lst.append(['"%s" not found. ' % charname, ('style/color', 'red')])
 
-    sym = {}
-    log_info = []
-    template = None
-    if char:
-      sym = char.dict
-      log_info.append('Char "%s" (%d),' % (char.name, len(char.dict)))
-    else:
-      sym = {}
-    if '_template' in sym:
-      template_name = sym['_template'].replace('"', '').strip()
-      template = charsheet.GetChar(template_name)
-      if template:
-	logging.debug('Using template "%s" for "%s"' % (template.name, char.name))
-	for k, v in template.dict.iteritems():
-	  sym.setdefault(k, v)
-	log_info.append('template "%s" (%d),' % (template_name, len(template.dict)))
-      else:
-	logging.debug('template "%s" for "%s" not found. ' % (template_name, char.name))
+    sym, char, template, out, log = get_char_and_template(charname)
+    out_lst += out
+    log_info += log
 
-    # Expand abbreviations
-    expansions = []
-    if char:
-      shortcuts = char.shortcuts
-      if template:
-        shortcuts.update(template.shortcuts)
-      for ex in reversed(list(WORD_RE.finditer(expr))):
-	expand = char.shortcuts.get(ex.group())
-	logging.debug('expansion: w=%s, ex=%s', repr(ex.group()), repr(expand))
-	if expand:
-	  expr = expr[:ex.start()] + expand + expr[ex.end():]
-	  expansions.append((expand, ex.start(), ex.end()))
-    expansions = reversed(expansions)
+    expr, expansions = get_expansions(expr, char, template)
 
-    # no longer needed, things should get unescaped on input and escaped on output outside the controller
-    #expr = expr.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
-    out_lst += handle_expr(char, sym, expr, log_info)
+    out, log = handle_expr(sym, expr)
+    out_lst += out
+    log_info += log
     if out_lst:
-      if char and not m.group(1):
-	offset += replacer(m.start()+1+offset, m.start()+1+offset,
+      if char and not charname:
+	offset += replacer(name_start+offset, name_start+offset,
 	  [[char.name + ':']])
       for expand, start, end in expansions:
-        offset += replacer(start+offset+m.start(2), end+offset+m.start(2), [[expand]])
+        offset += replacer(expr_start + start + offset, expr_start + end + offset, [[expand]])
 
       out_lst = [[' ']] + out_lst
-      offset += replacer(m.end(2)+offset, m.end(2)+offset, out_lst)
+      offset += replacer(expr_end+offset, expr_end+offset, out_lst)
+
+    logging.info(' '.join(log_info))
 
 STRIKETHROUGH_RE = re.compile(r'\/\* (.*?) \*\/', re.X)
+
+def get_char_and_template(charname):
+  out = []
+  log = []
+  sym = {}
+  char = None
+  if charname:
+    char = charsheet.GetChar(charname)
+    if char:
+      sym = char.dict
+      log.append('Char "%s" (%d),' % (char.name, len(char.dict)))
+    else:
+      out.append(['Sheet "%s" not found. ' % charname, ('style/color', 'red')])
+
+  template = None
+  if '_template' in sym:
+    template_name = sym['_template'].replace('"', '').strip()
+    template = charsheet.GetChar(template_name)
+    if template:
+      logging.debug('Using template "%s" for "%s"' % (template.name, char.name))
+      for k, v in template.dict.iteritems():
+	# don't overwrite existing entries
+	sym.setdefault(k, v)
+      log.append('template "%s" (%d),' % (template_name, len(template.dict)))
+    else:
+      out.append(['Template "%s" not found. ' % template_name, ('style/color', 'red')])
+  return sym, char, template, out, log
+
+def get_expansions(expr, char, template):
+  expansions = []
+  if char:
+    shortcuts = char.shortcuts
+    if template:
+      shortcuts.update(template.shortcuts)
+    for ex in reversed(list(WORD_RE.finditer(expr))):
+      expand = char.shortcuts.get(ex.group())
+      #logging.debug('expansion: w=%s, ex=%s', repr(ex.group()), repr(expand))
+      if expand:
+	expr = expr[:ex.start()] + expand + expr[ex.end():]
+	expansions.append((expand, ex.start(), ex.end()))
+  return expr, reversed(expansions)
 
 def markup(txt):
   out = []
@@ -96,24 +118,25 @@ def markup(txt):
   out.append([txt[pos:], ('style/color', '#aa00ff')])
   return out
 
-def handle_expr(char, sym, expr, log_info):
-  out_lst = []
+def handle_expr(sym, expr):
+  out = []
+  log = []
   env = {
     'opt_nat20': True,
     'opt_crit_notify': int(sym.get('_critNotify', sym.get('CritNotify', 20))),
   }
   try:
-    log_info.append('[%s]:' % expr)
+    log.append('[%s]:' % expr)
     raw_result = eval.ParseExpr(expr, sym, env)
     if raw_result.show_as_list():
       results = raw_result.items()
     else:
       results = [raw_result]
     for result in results:
-      if out_lst:
-	out_lst.append([', '])
+      if out:
+	out.append([', '])
       else:
-	log_info.append(repr(result.stats))
+	log.append(repr(result.stats))
       detail=''
       value=''
       # callers may need to use cgi.escape() to prevent XSS from user-supplied string tags?
@@ -123,14 +146,13 @@ def handle_expr(char, sym, expr, log_info):
       	value = result.publicval()
 	detail = result.detail()
       detail += '='
-      out_lst += markup(detail)
-      out_lst.append([value, ('style/fontWeight', 'bold')])
-      log_info.append(detail + value)
+      out += markup(detail)
+      out.append([value, ('style/fontWeight', 'bold')])
+      log.append(detail + value)
   except eval.ParseError, e:
-    out_lst.append([str(e), ('style/color', 'red')])
-    log_info.append(str(e))
-  logging.info(' '.join(log_info))
-  return out_lst
+    out.append([str(e), ('style/color', 'red')])
+    log.append(str(e))
+  return out, log
 
 if __name__ == '__main__':
   random.seed(2) # specially picked, first d20 gets a 20
@@ -205,9 +227,15 @@ if __name__ == '__main__':
     attack: attack(50) # default target 
   ''').save()
 
+  charsheet.CharSheet('''
+    Name: BadTemplate
+    _template: "Missing"
+    Attack: d8
+  ''').save()
+
   tests = [
-    '[Warrior: Axe]',
-    '[Warrior: Speed]',
+    '[Warrior:Axe]',
+    '[ Warrior: Speed ]',
     '[Warrior: Jump]',
     '[Warrior: bonus(Jump)]',
     '[D20Template: Speed]',
@@ -232,10 +260,14 @@ if __name__ == '__main__':
     '[MultiWeapon: b + 2]',
     '[MultiWeapon: b+dx+CA]',
     '[a]',
+    '[ a ]',
+    '[ Test : a ]',
     '[a+fact(3)]',
     '[Params: Broadsword(5)] [Params: Broadsword4] [Params: Broadsword]',
     '[Params: attack(80)] [Params: attack] [Params: attackT90b2] [Params: attack70b7]',
     "[Warrior: Double Strike] [Warrior: Warrior's Strike]",
+    "[BadCharacter: Attack]",
+    "[BadTemplate: Attack]",
   ]
   
   for input in tests:
