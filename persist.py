@@ -1,5 +1,6 @@
 #!/usr/bin/env python2.5
 
+import datetime
 import logging
 
 from google.appengine.ext import db
@@ -111,7 +112,7 @@ class Characters(db.Model):
   wavelet = db.StringProperty(multiline=False)
   blip = db.StringProperty(multiline=False)
   text = db.TextProperty()
-  date = db.DateTimeProperty(auto_now_add=True)
+  date = db.DateTimeProperty()
 
 def FindCharacter(name, owner, wave):
   seen_chars = {}
@@ -168,4 +169,5 @@ def SaveCharacter(name, owner, wave, wavelet, blip, text):
   char.wavelet = wavelet
   char.blip = blip
   char.text = text
+  char.date = datetime.datetime.now()
   char.put()

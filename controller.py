@@ -18,6 +18,8 @@ EXPR_RE = re.compile(r'''
   \]
   ''', re.X)
 
+SPECIAL_EXPR_RE = re.compile(r'^\[ \! (.*) \]$', re.X)
+
 PARENS_RE = re.compile(r'\(.*\)')
 WORD_RE = re.compile(r'(\w+)')
 STRIKETHROUGH_RE = re.compile(r'\/\* (.*?) \*\/', re.X)
@@ -40,18 +42,21 @@ def handle_text(txt, defaultgetter, defaultsetter, replacer, storage):
     expr_start = mexpr.start(2)
     expr_end = mexpr.end(2)
 
-    if name_match is not None:
-      charname = mexpr.group(1).strip()
-    else:
-      charname = defaultgetter()
-
     #logging.debug('charname=%s expr=%s', repr(charname), repr(expr))
-    if charname == '':
+    maybe_special = SPECIAL_EXPR_RE.match(mexpr.group())
+    if maybe_special:
       # "[:" prefix for special commands
-      out, log = do_special(storage, expr)
+      out, log = do_special(storage, maybe_special.group(1).strip())
       out_lst += out
       log_info += log
     else:
+      if name_match:
+	charname = name_match.strip()
+      elif name_match is None:
+	charname = defaultgetter()
+      else:
+	charname = None # "[:" disables the default char for this roll
+
       sym, char, template, out, log = get_char_and_template(storage, charname)
       out_lst += out
       log_info += log
@@ -85,7 +90,7 @@ def do_special(storage, expr):
     
   m = WORD_RE.match(expr)
   if not m:
-    error('Missing command after "[:"')
+    error('Missing command after "[!"')
     return out, logs
 
   cmd = m.group(1)
@@ -93,13 +98,13 @@ def do_special(storage, expr):
 
   special_fn = storage.getspecial(cmd)
   if not special_fn:
-    error('Unknown "[:" special command "%s"' % cmd)
+    error('Unknown "[!" special command "%s"' % cmd)
     return out, logs
   logs.append('special: %s %s' % (expr, repr(arg)))
   # FIXME: special commands with prototype other than (charname)?
   # Commands taking a character arg 
   if not arg:
-    error('Usage: "[:%s CharacterName]"' % cmd)
+    error('Usage: "[!%s CharacterName]"' % cmd)
     return out, logs
   out.append(['=', ('style/color', '#aa00ff')])
   for msg, log in special_fn(arg):
@@ -312,8 +317,9 @@ if __name__ == '__main__':
     "[BadCharacter: Attack]",
     "[BadTemplate: Attack]",
     "[:foo]",
-    "[:list]",
-    "[:list Test]",
+    "[!list]",
+    "[!list Test]",
+    "[! list Test ]",
   ]
   
   for input in tests:

@@ -122,13 +122,19 @@ def OnBlipSubmitted(properties, context):
     chars = list(persist.FindCharacter(name, modifier, waveId))
     if not chars:
       show('no matches for "%s"' % name, ('style/color', 'red'))
-    for char in chars:
+    for idx, char in enumerate(chars):
       if char.owner == modifier:
 	show('\nowned by you, ')
       else:
 	show('owner %s, ' % char.owner)
-      show('updated %s, ' % char.date)
+      date = char.date
+      if date:
+	show('updated %s UTC, ' % char.date.replace(microsecond=0))
+      else:
+	show('no date, please update or clear this character, ', ('style/color', 'red'))
       show('size=%d, ' % len(char.text))
+      if idx == 0:
+	show('active, ', ('style/fontWeight', 'bold'))
       if char.wave == waveId:
 	show('this wave, ')
       else:
