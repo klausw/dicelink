@@ -131,8 +131,12 @@ class Roll(webapp.RequestHandler):
     def defaultgetter():
       return persist.GetDefaultChar(wave_uid)
 
+    def defaultsetter(name):
+      if user != 'Anonymous':
+	persist.SetDefaultChar(wave_uid, name)
+
     storage = charsheet.CharacterAccessor(getter, saver)
-    controller.handle_text(content, defaultgetter, replacer, storage)
+    controller.handle_text(content, defaultgetter, defaultsetter, replacer, storage)
 
     need_escape_end.append(len(out_msg[0]))
     offset = 0

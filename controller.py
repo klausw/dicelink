@@ -22,7 +22,7 @@ PARENS_RE = re.compile(r'\(.*\)')
 WORD_RE = re.compile(r'(\w+)')
 STRIKETHROUGH_RE = re.compile(r'\/\* (.*?) \*\/', re.X)
 
-def handle_text(txt, defaultgetter, replacer, storage):
+def handle_text(txt, defaultgetter, defaultsetter, replacer, storage):
   # calls replacer(start, end, texts) => offset_delta
   offset = 0
   for mexpr in EXPR_RE.finditer(txt):
@@ -30,18 +30,22 @@ def handle_text(txt, defaultgetter, replacer, storage):
     log_info = []
     expr = mexpr.group(2).strip()
     expr_outside_parens = PARENS_RE.sub('', expr)
-    if '=' in expr_outside_parens or 'ParseError' in mexpr.group():
+    if '=' in expr_outside_parens or 'Error:' in mexpr.group():
       continue
     charname = None
+    char = None
+    expansions = []
+    name_match = mexpr.group(1)
     name_start = mexpr.start()+1
     expr_start = mexpr.start(2)
     expr_end = mexpr.end(2)
 
-    if mexpr.group(1):
+    if name_match is not None:
       charname = mexpr.group(1).strip()
     else:
       charname = defaultgetter()
 
+    #logging.debug('charname=%s expr=%s', repr(charname), repr(expr))
     if charname == '':
       # "[:" prefix for special commands
       out, log = do_special(storage, expr)
@@ -59,7 +63,7 @@ def handle_text(txt, defaultgetter, replacer, storage):
       log_info += log
 
     if out_lst:
-      if char and not charname:
+      if char and not name_match:
 	offset += replacer(name_start+offset, name_start+offset,
 	  [[char.name + ':']])
       for expand, start, end in expansions:
@@ -68,40 +72,42 @@ def handle_text(txt, defaultgetter, replacer, storage):
       out_lst = [[' ']] + out_lst
       offset += replacer(expr_end+offset, expr_end+offset, out_lst)
 
-    logging.info(' '.join(log_info))
+    if log_info:
+      logging.info(' '.join(log_info))
 
 def do_special(storage, expr):
   out = []
-  log = []
+  logs = []
 
   def error(msg):
     out.append(['Error: ' + msg, ('style/color', 'red')])
-    log.append(msg)
+    logs.append(msg)
     
   m = WORD_RE.match(expr)
   if not m:
     error('Missing command after "[:"')
-    return out, log
+    return out, logs
 
-  log.append('special: ' + expr)
   cmd = m.group(1)
   arg = expr[m.end():].strip()
 
+  special_fn = storage.getspecial(cmd)
+  if not special_fn:
+    error('Unknown "[:" special command "%s"' % cmd)
+    return out, logs
+  logs.append('special: %s %s' % (expr, repr(arg)))
   # FIXME: special commands with prototype other than (charname)?
   # Commands taking a character arg 
   if not arg:
     error('Usage: "[:%s CharacterName]"' % cmd)
-    return out, log
-  special_fn = storage.getspecial(cmd)
-  if not special_fn:
-    error('Command "%s" not implemented' % cmd)
-    return out, log
+    return out, logs
+  out.append(['=', ('style/color', '#aa00ff')])
   for msg, log in special_fn(arg):
     if msg:
       out.append(msg)
     if log:
-      log.append(log)
-  return msg, log
+      logs.append(log)
+  return out, logs
 
 def get_char_and_template(storage, charname):
   out = []
@@ -195,6 +201,7 @@ if __name__ == '__main__':
   logging.getLogger().setLevel(logging.DEBUG)
 
   storage = charsheet.CharacterAccessor(charsheet.GetInMemoryCharacter, charsheet.SaveInMemoryCharacter)
+  storage.add_special('list', lambda n: [(['\nlist1'], ''), (['\nlist2'], '')])
 
   charsheet.CharSheet('''
     Name: Test
@@ -304,15 +311,23 @@ if __name__ == '__main__':
     "[Warrior: Double Strike] [Warrior: Warrior's Strike]",
     "[BadCharacter: Attack]",
     "[BadTemplate: Attack]",
+    "[:foo]",
+    "[:list]",
+    "[:list Test]",
   ]
   
   for input in tests:
     out_msg = [input]
  
-    def defaultgetter():
-      return 'Test'
+    defaultchar = ['Test']
 
-    colors = { '#ff0000': '\033[31m', '#aa00ff': '\033[35m' }
+    def defaultgetter():
+      return defaultchar[0]
+
+    def defaultsetter(name):
+      defaultchar[0] = name
+
+    colors = { '#ff0000': '\033[31m', 'red': '\033[31m', '#aa00ff': '\033[35m' }
     def replacer(start, end, texts):
       before = out_msg[0][:start]
       after = out_msg[0][end:]
@@ -331,6 +346,6 @@ if __name__ == '__main__':
       out_msg[0] = before + new + after
       return len(new) - (end - start)
 
-    handle_text(input, defaultgetter, replacer, storage)
+    handle_text(input, defaultgetter, defaultsetter, replacer, storage)
     print out_msg[0]
 

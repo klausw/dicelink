@@ -63,14 +63,17 @@ def OnRobotAdded(properties, context):
 def OnBlipDeleted(properties, context):
   """Invoked when a blip was deleted."""
   blipId = properties['blipId']
-  blip = context.GetBlipById(blipId)
-  if not blip:
-    logging.warning('Blip "%s" not found in context: %s' % (blipId, repr(context)))
+  wavelets = context.GetWavelets()
+  if not wavelets:
+    logging.warning('OnBlipDeleted: no wavelets in context')
     return
-  waveId = blip.GetWaveId()
-  waveletId = blip.GetWaveletId()
+  if len(wavelets) > 1:
+    logging.warning('OnBlipDeleted: more than one wavelet in context')
+    return
+  waveletId = wavelets[0].GetId()
+  waveId = wavelets[0].GetWaveId()
 
-  # FIXME: persist.DeleteCharacterBlip(waveId, waveletId, blipId)
+  persist.DeleteCharacterBlip(waveId, waveletId, blipId)
 
 def OnBlipSubmitted(properties, context):
   """Invoked when a blip was submitted."""
@@ -81,8 +84,10 @@ def OnBlipSubmitted(properties, context):
     return
   waveId = blip.GetWaveId()
   waveletId = blip.GetWaveletId()
-  creator = blip.GetCreator()
-  modifier = properties.get('modifiedBy', creator) # hacked waveapi
+  modifier = properties.get('modifiedBy')
+  if not modifier:
+    logging.warning('No "modifiedBy" property available, using creator. FIXME!')
+    modifier = blip.GetCreator()
   doc = blip.GetDocument()
   txt = doc.GetText()
 
@@ -97,16 +102,57 @@ def OnBlipSubmitted(properties, context):
 
   def WaveCharacterGetter(name):
     logging.debug('WaveCharacterGetter: name="%s"', name)
-    sheet_txt = persist.GetCharacter(name, creator, waveId)
+    sheet_txt = persist.GetCharacter(name, modifier, waveId)
     if not sheet_txt:
       sheet_txt = persist.GetSheet(name) # backwards compatible
     if sheet_txt:
       return charsheet.CharSheet(sheet_txt)
     else:
       return None
+
+  def WaveCharacterLister(name):
+    out = []
+    logging.debug('called lister')
+    def show(txt, *attrs):
+      if not attrs:
+	attrs = [('style/color', '#444444')]
+      msg = [txt] + list(attrs)
+      out.append((msg, None))
+
+    chars = list(persist.FindCharacter(name, modifier, waveId))
+    if not chars:
+      show('no matches for "%s"' % name, ('style/color', 'red'))
+    for char in chars:
+      if char.owner == modifier:
+	show('\nowned by you, ')
+      else:
+	show('owner %s, ' % char.owner)
+      show('updated %s, ' % char.date)
+      show('size=%d, ' % len(char.text))
+      if char.wave == waveId:
+	show('this wave, ')
+      else:
+	show('wave ')
+	# FIXME: other wave instances?
+	url = 'https://wave.google.com/wave/#restored:wave:' + char.wave.replace('+', '%252B')
+	show(char.wave, ('link/manual', url))
+	show(', ')
+      if char.wave == waveId and char.wavelet == waveletId:
+	show('this wavelet')
+      elif '!conv+root' in char.wavelet:
+	show('root wavelet')
+      else:
+	show('wavelet %s' % char.wavelet)
+    return out
+
+  def WaveCharacterClearer(name):
+    msg = persist.ClearCharacterForOwner(name, modifier)
+    return [([msg, ('style/color', '#777777')], msg)]
       
   # FIXME: not thread safe? Use charsheet factory, or just factor out load/save better?
-  storage = charsheet.SetCharacterAccessor(WaveCharacterGetter, WaveCharacterSaver)
+  storage = charsheet.CharacterAccessor(WaveCharacterGetter, WaveCharacterSaver)
+  storage.add_special('list', WaveCharacterLister)
+  storage.add_special('clear', WaveCharacterClearer)
 
   # update info from character sheets if present - currently disabled
   if 'dicelink: Status' in txt:
@@ -116,7 +162,7 @@ def OnBlipSubmitted(properties, context):
     char = charsheet.CharSheet(txt)
     if char:
       logging.info('save char sheet, name="%s", keys=%d, bytes=%d', char.name, len(char.dict), len(txt))
-      char.save()
+      char.save(storage)
       persist.SetDefaultChar(modifier, char.name)
       #SetStatus(context, 'Updated character %s' % char.name)
   elif '[' in txt:
@@ -124,7 +170,9 @@ def OnBlipSubmitted(properties, context):
       return SetTextWithAttributes(doc, start, end, texts)
     def defaultgetter():
       return persist.GetDefaultChar(modifier)
-    controller.handle_text(txt, defaultgetter, replacer, storage)
+    def defaultsetter(name):
+      return persist.SetDefaultChar(modifier, name)
+    controller.handle_text(txt, defaultgetter, defaultsetter, replacer, storage)
 #  elif ':' in txt:
 #    logging.debug('interact: %s' % txt)
 #    out_public, out_private = charsheet.Interact(txt)
@@ -165,7 +213,7 @@ def OnBlipSubmitted(properties, context):
 	[detail, ('style/color', 'gray')],
 	[')'],
       ])
-      #out_private.append('%s rolled %s: %d [%s]' % (creator, spec['spec'], num, detail))
-      #persist.SaveMsg(creator, 'rolled %s: %d [%s]' % (spec['spec'], num, detail))
+      #out_private.append('%s rolled %s: %d [%s]' % (modifier, spec['spec'], num, detail))
+      #persist.SaveMsg(modifier, 'rolled %s: %d [%s]' % (spec['spec'], num, detail))
 
   #doc.GadgetSubmitDelta(document.Gadget(GADGET_URL), {'count': num})

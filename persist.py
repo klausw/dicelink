@@ -113,22 +113,53 @@ class Characters(db.Model):
   text = db.TextProperty()
   date = db.DateTimeProperty(auto_now_add=True)
 
+def FindCharacter(name, owner, wave):
+  seen_chars = {}
+  def seen(char):
+    logging.debug('checking char %s, blip %s, key %s', char.name, char.blip, repr(char.key()))
+    key = char.key()
+    if key in seen_chars:
+      return True
+    seen_chars[key] = True
+    return False
+
+  for query in (Characters.all().filter('name =', name).filter('wave =', wave),
+	        Characters.all().filter('name =', name).filter('owner =', owner)):
+    results = query.order('-date').fetch(100)
+    for result in results:
+      if not seen(result):
+	yield result
+
+  # try again without sorting for uninitialized date fields
+  for query in (Characters.all().filter('name =', name).filter('wave =', wave),
+	        Characters.all().filter('name =', name).filter('owner =', owner)):
+    results = query.fetch(100)
+    for result in results:
+      if not seen(result):
+	logging.info('Yielding no-date character: key=%s, name=%s, owner=%s, wave=%s', result.key(), result.name, result.owner, result.wave)
+	yield result
+
 def GetCharacter(name, owner, wave):
-  in_wave = Characters.all().filter('name =', name).filter('wave =', wave).fetch(1)
-  if in_wave:
-    return in_wave[0].text
-
-  by_owner = Characters.all().filter('name =', name).filter('owner =', owner).fetch(1)
-  if by_owner:
-    return by_owner[0].text
-
+  for result in FindCharacter(name, owner, wave):
+    # get first, ignore the rest
+    return result.text
   return None
 
+def ClearCharacterForOwner(name, owner):
+  deleted = 0
+  for char in FindCharacter(name, owner, 'example.com!invalidWave'):
+    if char.owner == owner:
+      char.delete()
+      deleted += 1
+  return 'cleared: %d' % deleted
+
+def DeleteCharacterBlip(wave, wavelet, blip):
+  for char in Characters.all().filter('wave =', wave).filter('wavelet =', wavelet).filter('blip =', blip).fetch(100):
+    char.delete()
+
 def SaveCharacter(name, owner, wave, wavelet, blip, text):
-  existing = Characters.all().filter('name =', name).filter('owner =', owner).filter('wave =', wave).fetch(1)
-  if existing:
-    char = existing[0]
-  else:
+  char = Characters.all().filter('name =', name).filter('owner =', owner).filter('wave =', wave).get()
+  if not char:
     char = Characters()
 
   char.name = name
