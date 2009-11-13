@@ -29,8 +29,8 @@ import sys
 # Examples:
 
 OBJECT_RE = re.compile(r'''
-  (?P<func>
-    (?P<name>
+  (?:
+    (?P<func>
       \w+
     )
     \(
@@ -665,6 +665,29 @@ class Function(object):
       bindings[key] = ParseExpr(item, sym, env)
     return eval_with(sym, env, bindings, self.expansion)
 
+def first_paren_expr(fexpr):
+  args = []
+  argidx = 0
+  open_parens = 0
+  in_quotes = False
+  for idx, char in enumerate(fexpr):
+    if char == '(' and not in_quotes:
+      open_parens += 1
+    elif char == ')' and not in_quotes:
+      open_parens -= 1
+      if open_parens < 0:
+	break
+    elif char == '"':
+      in_quotes = not in_quotes
+    elif char == ',' and open_parens == 0 and not in_quotes:
+      args.append(fexpr[argidx:idx])
+      argidx = idx+1
+  if open_parens > 0:
+    raise ParseError('Missing closing parenthesis in "%s"' % fexpr)
+  args.append(fexpr[argidx:])
+  fexpr = fexpr[:idx+1]
+  return args, fexpr
+
 def ParseExpr(expr, sym, parent_env):
   if isinstance(expr, Result):
     return expr
@@ -764,34 +787,15 @@ def ParseExpr(expr, sym, parent_env):
       new_string = INTERPOLATE_RE.sub(eval_string, matched)
       AddFlag(new_string, True)
     elif dict['func']:
-      fname = dict['name']
+      fname = dict['func']
       fexpr = dict['expr']
 
       # The regex is greedy, in "f(1)+g(2)" it will match "1)+g(".
       # This makes the simple cases fast, but for complex expressions we need to
       # handle parenthesis balancing properly.
-      args = []
-      argidx = 0
       if '(' in fexpr or '"' in fexpr:
-        open_parens = 0
-	in_quotes = False
-	for idx, char in enumerate(fexpr):
-	  if char == '(' and not in_quotes:
-	    open_parens += 1
-	  elif char == ')' and not in_quotes:
-	    open_parens -= 1
-	    if open_parens < 0:
-	      break
-	  elif char == '"':
-	    in_quotes = not in_quotes
-	  elif char == ',' and open_parens == 0 and not in_quotes:
-	    args.append(fexpr[argidx:idx])
-	    argidx = idx+1
-	if open_parens > 0:
-	  raise ParseError('Missing closing parenthesis in "%s"' % fexpr)
-	args.append(fexpr[argidx:])
-	fexpr = fexpr[:idx+1]
-	match_end = m.start('expr') + idx + 1
+	args, fexpr = first_paren_expr(fexpr)
+	match_end = m.start('expr') + len(fexpr)
       else:
 	args = fexpr.split(',')
         
