@@ -753,7 +753,7 @@ def ParseExpr(expr, sym, parent_env):
     env['stats']['objects'] += 1
     if env['stats']['objects'] > MAX_OBJECTS:
       raise ParseError('Evaluation limit exceeded. Bad recursion?')
-    #logging.debug('matcher: expr "%s" <!> "%s', expr[:start], expr[start:])
+    #logging.debug('matcher: expr "%s" <!> "%s"', expr[:start], expr[start:])
 
     # Optional +/-
     msign = PLUSMINUS_RE.match(expr[start:])
@@ -856,7 +856,7 @@ def ParseExpr(expr, sym, parent_env):
       # handle parenthesis balancing properly.
       if '(' in fexpr or '"' in fexpr:
 	args, fexpr = first_paren_expr(fexpr)
-	match_end = m.start('fexpr') + len(fexpr)
+	match_end = m.start('fexpr') + len(fexpr) + 1
       else:
 	args = fexpr.split(',')
       # print 'fexpr=%s' % fexpr
@@ -1045,13 +1045,16 @@ if __name__ == '__main__':
     ('sval(3d6 "hit" "marked")', r'/^="hit":"marked"/'),
     ('len $ 3d6', 3),
     ('len$explode$3d6', 3),
+    ('d(1,d(1,1))+10', 11),
+    ('d(1,d(1,1) ) + 10', 11),
+    ('d( 1 , d( 1 , 1 ) ) + 10', 11),
 
     ('Hometown', '="New York"'),
     ('fact(5)', 120),
     ('fib(7)', 13),
-    ('if(not(and(1!=2, 1==2)), 100, 200)', 100),
-    ('if(1==1, "with,comma", "more,comma")', '="with,comma"'),
-    ('if(1==2, 3 "with,comma", 4 "unbalanced)paren")', '=4:"unbalanced)paren"'),
+    ('if(not(and(1!=2, 1==2)), 100, 200) + 10', 110),
+    ('if(1==1, "with,comma", "more,comma") + "foo"', '="foo":"with,comma"'),
+    ('if(1==2, 3 "with,comma", 4 "unbalanced)paren") + 10', '=14:"unbalanced)paren"'),
     ('if(1==2, 3, mul(2,3)', '/ParseError.*Missing closing parenthesis/'),
     ('if("a"=="a", 1, 2)', 1),
     ('if("a"=="b", 1, 2)', 2),

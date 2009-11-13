@@ -265,6 +265,33 @@ if __name__ == '__main__':
     #lval $ d6
   ''').save(storage)
 
+
+  charsheet.CharSheet('''
+    Name: mw2
+    # Default weapon properties, set this for your favorite weapon
+    #name: "unarmed"; n_dice: 1; n_sides: 4; enh: 0; proficiency: 0; misc_hit: 0; misc_damage: 0; crit_sides: 6
+    name: "Longsword+2"; n_dice: 1; n_sides: 8; enh: 2; proficiency: 3; misc_hit: 1; misc_damage: 1; crit_sides: 6
+    # Weapon-specific overrides
+    withMaul: with(name="Maul+1", n_sides=6, n_dice=2, enh=1, proficiency=2, misc_damage=0, misc_hit=0, $)
+    times_w: 1 # power specific dice multiplier
+    WeaponHit: enh + proficiency + misc_hit + name
+    WeaponDamage: d(mul(n_dice, times_w), n_sides) + enh + misc_damage + name
+    WeaponDamage2: d8 + enh + misc_damage + name
+    (times_w)W: WeaponDamage
+    critical: d(enh, crit_sides) + max($)
+    critical2: max($) + d(enh, crit_sides)
+    # Simple static values for testing
+    StrMod: 4
+    DexMod: 2
+    HalfLevel: 3
+    StrAttack: d20 + StrMod + HalfLevel + WeaponHit
+    DexAttack: d20 + DexMod + HalfLevel + WeaponHit
+    p1:Power One Attack: StrAttack "vs AC"
+    p1d:Power One Damage: 2W + StrMod
+    p2:Power Two Attack: DexAttack "vs Reflex"
+    p2d:Power Two Damage: 1W + DexMod
+  ''').save(storage)
+
   charsheet.CharSheet('''
     Name: Params
     Broadsword(n): d8+n
@@ -326,6 +353,12 @@ if __name__ == '__main__':
     '[Warrior: withStr22 bonus(Jump)]',
     '[Warrior: springy withStr22 bonus(Jump)]',
     '[Warrior: springy withStrBonus4 bonus(Jump)]',
+    '[mw2:withMaul Power One Attack]',
+    '[mw2:Power Two Attack]',
+    '[mw2:WeaponDamage]',
+    '[mw2:WeaponDamage2]',
+    '[mw2:withMaul critical Power One Damage]',
+    '[mw2:withMaul critical2 Power One Damage]',
   ]
   
   for input in tests:
