@@ -34,8 +34,19 @@ OBJECT_RE = re.compile(r'''
       \w+
     )
     \(
-      (?P<expr> .* )
+      (?P<fexpr> .* )
     \)
+  ) |
+  (?:
+    (?P<fpipe>
+      \w+
+    )
+    \s*
+    \$  # func $ arg
+    \s*
+    (?P<fpinput>
+      .*
+    )
   ) |
   (?P<dice>
     (?P<num_dice> \d* )
@@ -64,17 +75,12 @@ INTERPOLATE_RE = re.compile(r'\{([^}]*)\}')
 
 PLUSMINUS_RE = re.compile(r'\s* ([-+])? \s*', re.X)
 
-def LookupSym(name, sym, skip_prefix):
+def LookupSym(name, sym):
   while True:
     if name in sym:
       return sym[name]
       break
-    if not skip_prefix:
-      break
-    space = name.find(' ')
-    if space == -1:
-      break
-    name = name[space+1:]
+    break
   return None
 
 class ParseError(Exception):
@@ -615,7 +621,7 @@ FUNCTIONS = {
   'val': fn_val,
   'cond': fn_cond,
   'lval': fn_lval,
-  # undocumented
+  ### undocumented
   'conflicttest': fn_conflicttest,
   'ifbound': fn_ifbound,
   'reroll_if': fn_reroll_if,
@@ -623,7 +629,8 @@ FUNCTIONS = {
   'nth': fn_nth,
   #'range': fn_range, # needs sanity check for ranges!
   'sval': fn_sval,
-  # new, document!
+  ### new, document!
+  # func $ args
 
   ### planned:
   # flagged
@@ -687,6 +694,23 @@ def first_paren_expr(fexpr):
   args.append(fexpr[argidx:])
   fexpr = fexpr[:idx+1]
   return args, fexpr
+
+def eval_fname(sym, env, fname, args):
+  fn = FUNCTIONS.get(fname, None)
+  func = None
+  if not fn:
+    func = sym.get(fname + ('$' * len(args)))
+
+  args = [x.strip() for x in args]
+  if func and isinstance(func, Function):
+    return func.eval(sym, env, args)
+  elif fn:
+    try:
+      return fn(sym, env, *args)
+    except TypeError, e:
+      logging.info('TypeError: %s', e, exc_info=True)
+      raise ParseError('%s: unexpected args %s' % (fname, repr(args)))
+  return None
 
 def ParseExpr(expr, sym, parent_env):
   if isinstance(expr, Result):
@@ -759,24 +783,53 @@ def ParseExpr(expr, sym, parent_env):
     elif dict['number']:
       Add(Result(int(matched), '', {}), sign)
     elif dict['symbol']:
-      expansion = LookupSym(matched, sym, start==0)
+      expansion = LookupSym(matched, sym)
       if expansion is None:
-        fname = ''
-	args = []
-	fidx = 0
-        for nm in NUMBER_RE.finditer(matched):
-	  args.append(int(nm.group()))
-	  fname += matched[fidx:nm.start()] + '$'
-	  fidx = nm.end()
-	fname += matched[fidx:]
-	#logging.debug('maybe-fn: fname="%s" args=%s', fname, repr(args))
-	func = LookupSym(fname, sym, start==0)
-	if func is None:
-	  raise ParseError('Symbol "%s" not found' % matched)
+	# Not a normal symbol lookup, look for special symbols
 	
-	if not isinstance(func, Function):
-	  raise ParseError('Symbol "%s" is not a function' % matched)
-	expansion = func.eval(sym, env, args)
+	# No spaces allowed in magic symbols, end match at space if present
+	if ' ' in matched:
+	  sidx = matched.index(' ')
+	  matched = matched[:sidx]
+	  match_end = start + len(matched) + 1
+	
+	# is it a magic symbol?
+	expansion = LookupSym(matched, sym)
+	if expansion:
+	  dollar = expansion.find('$')
+	  if dollar < 0:
+	    raise ParseError('Symbol "%s" is not magic (no $ in expansion)' % matched)
+	  marg = expr[match_end:]
+	  expansion = expansion[:dollar] + marg + expansion[dollar+1:]
+	  #logging.debug('magic expansion: %s', repr(expansion))
+	  match_end = len(expr)
+	else:
+	  # a(b)c(d)e style function called as a10c2e ?
+	  fname = ''
+	  args = []
+	  fidx = 0
+	  for nm in NUMBER_RE.finditer(matched):
+	    args.append(int(nm.group()))
+	    fname += matched[fidx:nm.start()] + '$'
+	    fidx = nm.end()
+	  fname += matched[fidx:]
+	  #logging.debug('maybe-fn: fname="%s" args=%s', fname, repr(args))
+	  func = LookupSym(fname, sym)
+	  if func is None:
+	    raise ParseError('Symbol "%s" not found' % matched)
+	  
+	  if not isinstance(func, Function):
+	    raise ParseError('Symbol "%s" is not a function' % matched)
+
+	  # FIXME, duplication
+	  dollar = func.expansion.find('$')
+	  if dollar >= 0:
+	    marg = expr[start + match_end:]
+	    func = Function(func.proto, func.expansion[:dollar] + marg + func.expansion[dollar+1:])
+	    #logging.debug('magic function: %s', repr(func.expansion))
+	    expansion = func.eval(sym, env, args)
+	    match_end = len(expr)
+	  expansion = func.eval(sym, env, args)
       if not isinstance(expansion, Result):
         expansion = ParseExpr(expansion, sym, env)
       Add(expansion, sign)
@@ -786,33 +839,31 @@ def ParseExpr(expr, sym, parent_env):
       # set flag, including double quotes
       new_string = INTERPOLATE_RE.sub(eval_string, matched)
       AddFlag(new_string, True)
+    elif dict['fpipe']:
+      fname = dict['fpipe']
+      fexpr = dict['fpinput']
+      ret = eval_fname(sym, env, fname, [fexpr])
+      if ret:
+	Add(ret, sign)
+      else:
+        raise ParseError('Unknown function "%s(%s)"' % (fname, fexpr))
     elif dict['func']:
       fname = dict['func']
-      fexpr = dict['expr']
+      fexpr = dict['fexpr']
 
       # The regex is greedy, in "f(1)+g(2)" it will match "1)+g(".
       # This makes the simple cases fast, but for complex expressions we need to
       # handle parenthesis balancing properly.
       if '(' in fexpr or '"' in fexpr:
 	args, fexpr = first_paren_expr(fexpr)
-	match_end = m.start('expr') + len(fexpr)
+	match_end = m.start('fexpr') + len(fexpr)
       else:
 	args = fexpr.split(',')
-        
       # print 'fexpr=%s' % fexpr
-      fn = FUNCTIONS.get(fname, None)
-      func = None
-      if not fn:
-        func = sym.get(fname + ('$' * len(args)))
-      if func and isinstance(func, Function):
-	Add(func.eval(sym, env, args), sign)
-      elif fn:
-	try:
-          ret = fn(sym, env, *args)
-	except TypeError, e:
-	  logging.info('TypeError: %s', e, exc_info=True)
-	  raise ParseError('%s: unexpected args %s' % (fname, repr(args)))
-        Add(ret, sign)
+
+      ret = eval_fname(sym, env, fname, args)
+      if ret:
+	Add(ret, sign)
       elif N_TIMES_RE.match(fname):
         ntimes = int(N_TIMES_RE.match(fname).group(1))
 	if ntimes > 100:
@@ -896,16 +947,20 @@ if __name__ == '__main__':
     'Strike': '1W + StrMod',
     'Destroy': '2W + StrMod',
     'conflicttest$': Function(['x'], '"my value"'),
+    'MeleeBonus': 'Enh + StrP',
+    'withEnhFour': 'with(Enh=4, $)',
+    'withEnh$': Function(['N'], 'with(Enh=N, $)'),
+    'withStr$': Function(['Str'], '$'),
   }
 
   sym_tests = [
-    ('with Deft Strike', True, 'd4+4'),
-    ('Not Deft Strike', False, None),
-    ('Sneak Attack', False, '2d8+4'),
-    ('Foo', False, None),
+    ('Deft Strike', 'd4+4'),
+    ('Foo', None),
+    ('Not Deft Strike', None),
+    ('Sneak Attack', '2d8+7'),
   ]
-  for name, flag, result in sym_tests:
-    print name, LookupSym(name, sym, flag), result
+  for name, result in sym_tests:
+    assert LookupSym(name, sym) == result, 'symbol lookup %s != %s' % (repr(name), repr(result))
 
   env = {
     'opt_nat20': True,
@@ -988,6 +1043,8 @@ if __name__ == '__main__':
     ('lval(3d6)', r'/^\(3, 6, 1\)/'),
     ('lval(top(4, 10d20))', r'/^\(13, 14, 18, 20\)/'),
     ('sval(3d6 "hit" "marked")', r'/^="hit":"marked"/'),
+    ('len $ 3d6', 3),
+    ('len$explode$3d6', 3),
 
     ('Hometown', '="New York"'),
     ('fact(5)', 120),
@@ -1009,6 +1066,10 @@ if __name__ == '__main__':
     ('cond(3==0, "zero", 3==1, "one", 3==2, "two")', r'/^=$/'),
     ('cond(3==0, "zero", 3==1, "one", 3==2, "two", "other")', '"other"'),
     ('conflicttest(3)', 'builtin'),
+    ('MeleeBonus', 7),
+    ('withEnhFour MeleeBonus', 9),
+    ('withEnh8 MeleeBonus', 13),
+    ('withEnh8 withStr20 MeleeBonus', 14),
 
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),

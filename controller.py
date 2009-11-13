@@ -238,6 +238,9 @@ if __name__ == '__main__':
     Axe: d12 + StrMod # Can refer to values from the template
     Warrior's Strike: d8+5
     Double Strike: Warrior's Strike + Warrior's Strike
+    withStr(Strength): $
+    withStrBonus(N): with(Strength=Strength+N, $)
+    springy: with(JumpSkill=10, $)
   ''').save(storage)
 
   charsheet.CharSheet('''
@@ -320,6 +323,9 @@ if __name__ == '__main__':
     "[!list]",
     "[!list Test]",
     "[! list Test ]",
+    '[Warrior: withStr22 bonus(Jump)]',
+    '[Warrior: springy withStr22 bonus(Jump)]',
+    '[Warrior: springy withStrBonus4 bonus(Jump)]',
   ]
   
   for input in tests:
