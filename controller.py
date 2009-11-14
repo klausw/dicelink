@@ -305,6 +305,17 @@ if __name__ == '__main__':
     attack: attack(50) # default target 
   ''').save(storage)
 
+  charsheet.CharSheet(u'''
+    Name: macrotest
+    # Uses experimental features, the macro feature isn't final.
+    # See DiceLink Feature and Development Discussions (#2) .
+    Enh: 2
+    Pow: Enh + 100
+    super: with(Enh=4, $)
+    enh(Enh): $
+    add(n): with(Enh=Enh+n, $)
+  ''').save(storage)
+
   charsheet.CharSheet('''
     Name: BadTemplate
     _template: "Missing"
@@ -359,6 +370,7 @@ if __name__ == '__main__':
     '[mw2:WeaponDamage2]',
     '[mw2:withMaul critical Power One Damage]',
     '[mw2:withMaul critical2 Power One Damage]',
+    '[macrotest:Pow] [macrotest:super Pow] [macrotest:enh7 Pow] [macrotest:add10 Pow] [macrotest:super add10 Pow]',
   ]
   
   for input in tests:

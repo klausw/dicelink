@@ -795,7 +795,7 @@ def ParseExpr(expr, sym, parent_env):
 	
 	# is it a magic symbol?
 	expansion = LookupSym(matched, sym)
-	if expansion and isinstance(expansion, str):
+	if expansion and isinstance(expansion, basestring): # FIXME, hack
 	  dollar = expansion.find('$')
 	  if dollar < 0:
 	    raise ParseError('Symbol "%s" is not magic (no $ in expansion)' % matched)
@@ -949,6 +949,7 @@ if __name__ == '__main__':
     'conflicttest$': Function(['x'], '"my value"'),
     'MeleeBonus': 'Enh + StrP',
     'withEnhFour': 'with(Enh=4, $)',
+    'withEnhUnicode': u'with(Enh=4, $)',
     'withEnh$': Function(['N'], 'with(Enh=N, $)'),
     'withStr$': Function(['Str'], '$'),
   }
@@ -1071,6 +1072,7 @@ if __name__ == '__main__':
     ('conflicttest(3)', 'builtin'),
     ('MeleeBonus', 7),
     ('withEnhFour MeleeBonus', 9),
+    ('withEnhUnicode MeleeBonus', 9),
     ('withEnh8 MeleeBonus', 13),
     ('withEnh8 withStr20 MeleeBonus', 14),
 
@@ -1103,7 +1105,7 @@ if __name__ == '__main__':
     if hasattr(expected, 'iterfind'):
       if expected.search(str):
         status='pass'
-    if isinstance(expected, str):
+    if isinstance(expected, basestring):
       m = re.search(r'^/(.*)/$', expected)
       if m:
         pattern = re.compile(m.group(1))
@@ -1122,3 +1124,5 @@ if __name__ == '__main__':
       print status, expr, result_str
 
   print '%d ok, %d fail, ran %d/%d' % (ok, bad, ok+bad, len(tests))
+  assert ok>0, 'TEST DRIVER BROKEN'
+  assert bad==0, 'FAILING TESTS'
