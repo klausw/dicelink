@@ -10,11 +10,11 @@ EXPR_RE = re.compile(r'''
   \[
   (?:        # "CharacterName:", optional
     \s*
-    ([^]:]*)
-    :
+    (?P<name> [^]:]* )
+    (?P<sep> :+)
   )?
   \s*
-  ( [^]]* )    # expression
+  (?P<expr> [^]]* )    # expression
   \]
   ''', re.X)
 
@@ -30,17 +30,17 @@ def handle_text(txt, defaultgetter, defaultsetter, replacer, storage):
   for mexpr in EXPR_RE.finditer(txt):
     out_lst = []
     log_info = []
-    expr = mexpr.group(2).strip()
+    expr = mexpr.group('expr').strip()
     expr_outside_parens = PARENS_RE.sub('', expr)
     if '=' in expr_outside_parens or 'Error:' in mexpr.group():
       continue
     charname = None
     char = None
     expansions = []
-    name_match = mexpr.group(1)
+    name_match = mexpr.group('name')
     name_start = mexpr.start()+1
-    expr_start = mexpr.start(2)
-    expr_end = mexpr.end(2)
+    expr_start = mexpr.start('expr')
+    expr_end = mexpr.end('expr')
 
     #logging.debug('charname=%s expr=%s', repr(charname), repr(expr))
     maybe_special = SPECIAL_EXPR_RE.match(mexpr.group())
@@ -50,12 +50,14 @@ def handle_text(txt, defaultgetter, defaultsetter, replacer, storage):
       out_lst += out
       log_info += log
     else:
-      if name_match:
+      if name_match is not None:
 	charname = name_match.strip()
-      elif name_match is None:
-	charname = defaultgetter()
+	if mexpr.group('sep') == '::':
+	  defaultsetter(charname)
+	# "[:" disables the default char for this roll by setting charname=''
       else:
-	charname = None # "[:" disables the default char for this roll
+	charname = defaultgetter()
+      # charname==None or charname=='' mean no default char
 
       sym, char, template, out, log = get_char_and_template(storage, charname)
       out_lst += out
@@ -342,12 +344,6 @@ if __name__ == '__main__':
     '[top(3, 4d6)]',
     '[top(3, 4x(3d6))]',
     '[BW(12,4)]',
-    '[MultiWeapon: with(Weapon=Maul, DailyDamage)]',
-    '[MultiWeapon: DailyDamage]',
-    '[MultiWeapon: with(Weapon=Dagger, DexDamage)]',
-    '[MultiWeapon: b]',
-    '[MultiWeapon: b + 2]',
-    '[MultiWeapon: b+dx+CA]',
     '[a]',
     '[ a ]',
     '[ Test : a ]',
@@ -355,28 +351,39 @@ if __name__ == '__main__':
     '[Params: Broadsword(5)] [Params: Broadsword4] [Params: Broadsword]',
     '[Params: attack(80)] [Params: attack] [Params: attackT90b2] [Params: attack70b7]',
     "[Warrior: Double Strike] [Warrior: Warrior's Strike]",
-    "[BadCharacter: Attack]",
-    "[BadTemplate: Attack]",
-    "[:foo]",
-    "[!list]",
+    "ERROR: [BadCharacter: Attack]",
+    "ERROR: [BadTemplate: Attack]",
+    "ERROR: [:foo]",
+    "ERROR: [!list]",
     "[!list Test]",
     "[! list Test ]",
-    '[Warrior: withStr22 bonus(Jump)]',
-    '[Warrior: springy withStr22 bonus(Jump)]',
-    '[Warrior: springy withStrBonus4 bonus(Jump)]',
-    '[mw2:withMaul Power One Attack]',
-    '[mw2:Power Two Attack]',
-    '[mw2:WeaponDamage]',
-    '[mw2:WeaponDamage2]',
-    '[mw2:withMaul critical Power One Damage]',
-    '[mw2:withMaul critical2 Power One Damage]',
-    '[macrotest:Pow] [macrotest:super Pow] [macrotest:enh7 Pow] [macrotest:add10 Pow] [macrotest:super add10 Pow]',
+
+    '[Warrior:: withStr22 bonus(Jump)]',
+    '[springy withStr22 bonus(Jump)]',
+    '[springy withStrBonus4 bonus(Jump)]',
+    '[::d6]',
+    'NONAME: [d20]',
+
+    '[MultiWeapon:: with(Weapon=Maul, DailyDamage)]',
+    '[DailyDamage]',
+    '[with(Weapon=Dagger, DexDamage)]',
+    '[b]',
+    '[b + 2]',
+    '[b+dx+CA]',
+
+    '[mw2::withMaul Power One Attack]',
+    '[Power Two Attack]',
+    '[WeaponDamage]',
+    '[WeaponDamage2]',
+    '[withMaul critical Power One Damage]',
+    '[withMaul critical2 Power One Damage]',
+
+    u'[macrotest::Pow] [super Pow] [enh7 Pow] [add10 Pow] [super add10 Pow]',
   ]
   
+  defaultchar = ['Test']
   for input in tests:
     out_msg = [input]
- 
-    defaultchar = ['Test']
 
     def defaultgetter():
       return defaultchar[0]
