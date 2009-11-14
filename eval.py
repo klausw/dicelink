@@ -795,7 +795,7 @@ def ParseExpr(expr, sym, parent_env):
 	
 	# is it a magic symbol?
 	expansion = LookupSym(matched, sym)
-	if expansion:
+	if expansion and isinstance(expansion, str):
 	  dollar = expansion.find('$')
 	  if dollar < 0:
 	    raise ParseError('Symbol "%s" is not magic (no $ in expansion)' % matched)
@@ -922,15 +922,15 @@ if __name__ == '__main__':
     'Deft Strike': 'd4+4',
     'Sneak Attack': '2d8+7',
     'Recursive': 'Recursive',
-    'Armor': '2',
-    'NegArmor': '-2',
-    'Trained': '5',
-    'Level': '3',
+    'Armor': 2,
+    'NegArmor': -2,
+    'Trained': 5,
+    'Level': 3,
     'HalfLevel': 'div(Level, 2)',
     'Str': '18',
     'StrMod': 'div(Str - 10, 2)',
     'StrP': 'StrMod + HalfLevel',
-    'Enh': '2',
+    'Enh': 2,
     'Bash': 'd20 + StrP + Enh',
     'Hometown': '"New York"',
     'e$$': Function(['Count', 'TN'], 'count(>= TN, explode(d(Count, 6)))'),
@@ -1077,6 +1077,7 @@ if __name__ == '__main__':
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
     ('50x(50d6)', 'ParseError'),
+    ('Enh xyz', 'not a function'),
   ]
 
   # FIXME: put into proper test
