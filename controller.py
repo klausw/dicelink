@@ -324,6 +324,11 @@ if __name__ == '__main__':
     Attack: d8
   ''').save(storage)
 
+  charsheet.CharSheet('''
+    Name: TrailingSpace 
+    Skill: 5
+  ''').save(storage)
+
   tests = [
     '[Warrior:Axe]',
     '[ Warrior: Speed ]',
@@ -379,6 +384,8 @@ if __name__ == '__main__':
     '[withMaul critical2 Power One Damage]',
 
     u'[macrotest::Pow] [super Pow] [enh7 Pow] [add10 Pow] [super add10 Pow]',
+
+    '[TrailingSpace: Skill]',
   ]
   
   defaultchar = ['Test']

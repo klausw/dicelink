@@ -154,9 +154,14 @@ def itemsFromText(orig_txt):
   txt = COMMENT_RE.sub(replaceComment, txt)
 
   # save items and positions
+  def StripNotNone(txt):
+    if not txt:
+      return txt
+    return txt.strip()
+
   for m in ITEMS_RE.finditer(txt):
     start, end = m.start(2), m.end(3)
-    abbr, key, value = m.groups()
+    abbr, key, value = map(StripNotNone, m.groups())
     yield start, end, abbr, key, value
 
 
