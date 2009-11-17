@@ -2,7 +2,6 @@
 
 import datetime
 import logging
-import re
 
 from google.appengine.ext import db
 
@@ -56,17 +55,6 @@ from google.appengine.ext import db
 #   date: 2009-10-01 00:00:00.111222
 
 
-FROM_FULL_URL_RE = re.compile(r'restored:wave:([^,]*)')
-def canonical_campaign(campaign):
-  m = FROM_FULL_URL_RE.search(campaign)
-  if m:
-    campaign = m.group(1)
-
-  # Undo weird URL expansion
-  campaign = campaign.replace('%252B', '+')
-  campaign = campaign.replace('%2B', '+')
-  return campaign
-
 class Msg(db.Model):
   author = db.StringProperty()
   content = db.TextProperty()
@@ -105,7 +93,6 @@ def GetSheet(name):
     return None
 
 class DefaultChar(db.Model):
-  # key: owner
   name = db.StringProperty(multiline=False)
 
 def SetDefaultChar(user, char_name):
@@ -118,19 +105,6 @@ def GetDefaultChar(user):
   else:
     return None
 
-class SearchList(db.Model):
-  # key: wave
-  searchlist = db.StringListProperty()
-
-def SetSearchList(wave, list):
-  SearchList(key_name=wave, searchlist=list).put()
-  
-def GetSearchList(wave):
-  item = SearchList.get_by_key_name(wave)
-  if not item:
-    return []
-  return item.searchlist
-
 class Characters(db.Model):
   name = db.StringProperty(multiline=False)
   owner = db.StringProperty(multiline=False)
@@ -139,9 +113,6 @@ class Characters(db.Model):
   blip = db.StringProperty(multiline=False)
   text = db.TextProperty()
   date = db.DateTimeProperty()
-
-def CharactersInWave(wave):
-  return Characters.all().filter('wave =', wave).count()
 
 def FindCharacter(name, owner, wave, unused_wavelet):
   seen_chars = {}

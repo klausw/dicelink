@@ -334,8 +334,7 @@ if __name__ == '__main__':
 
   charsheet.CharSheet(u'''
     Name: 天地
-    力: 17
-    力2: 力 "力2 is {力}"
+    力: 3d6
   ''').save(storage)
 
   tests = [
@@ -394,7 +393,6 @@ if __name__ == '__main__':
 
     u'[macrotest::Pow] [super Pow] [enh7 Pow] [add10 Pow] [super add10 Pow]',
     u'[天地:: 力] [力]',
-    u'[力2]',
     u'[天地mistype: 力]',
 
     '[TrailingSpace: Skill]',
