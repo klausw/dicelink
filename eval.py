@@ -842,7 +842,11 @@ def ParseExpr(expr, sym, parent_env):
       Add(expansion, sign)
     elif dict['string']:
       def eval_string(match):
+<<<<<<< HEAD:eval.py
         return str(ParseExpr(match.group(1), sym, env).value())
+=======
+        return ParseExpr(match.group(1), sym, env).publicval().replace('"', '')
+>>>>>>> f2090d5... strip quotes in "{}" interpolated text:eval.py
       # set flag, including double quotes
       new_string = INTERPOLATE_RE.sub(eval_string, matched)
       AddFlag(new_string, True)
@@ -1088,6 +1092,8 @@ if __name__ == '__main__':
     ("Quot'1", 1),
     ("Test Quot'2", 2),
     ("weird 1z'3", 3),
+    ('"a {Hometown} b"', r'/^="a New York b"$/'),
+    ('with(x=Enh + Hometown, "a {x} b")', r'/^="a 2:New York b"$/'),
 
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
