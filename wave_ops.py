@@ -84,10 +84,11 @@ def OnBlipSubmitted(properties, context):
     return
   waveId = blip.GetWaveId()
   waveletId = blip.GetWaveletId()
+  creator = blip.GetCreator()
   modifier = properties.get('modifiedBy')
   if not modifier:
     logging.warning('No "modifiedBy" property available, using creator. FIXME!')
-    modifier = blip.GetCreator()
+    modifier = creator
   doc = blip.GetDocument()
   txt = doc.GetText()
 
@@ -96,7 +97,7 @@ def OnBlipSubmitted(properties, context):
   def WaveCharacterSaver(sheet):
     name = sheet.name
     #logging.debug('WaveCharacterSaver: name="%s" blipId=%s', name, blipId)
-    persist.SaveCharacter(name, modifier, waveId, waveletId, blipId, sheet.__str__())
+    persist.SaveCharacter(name, creator, waveId, waveletId, blipId, sheet.__str__())
     #if blipId:
     #  SetTextOfBlip(context, waveId, waveletId, blipId, sheet.__str__())
 
