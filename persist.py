@@ -114,7 +114,7 @@ class Characters(db.Model):
   text = db.TextProperty()
   date = db.DateTimeProperty()
 
-def FindCharacter(name, owner, wave):
+def FindCharacter(name, owner, wave, unused_wavelet):
   seen_chars = {}
   def seen(char):
     logging.debug('checking char %s, blip %s, key %s', char.name, char.blip, repr(char.key()))
@@ -140,15 +140,15 @@ def FindCharacter(name, owner, wave):
 	logging.info('Yielding no-date character: key=%s, name=%s, owner=%s, wave=%s', result.key(), result.name, result.owner, result.wave)
 	yield result
 
-def GetCharacter(name, owner, wave):
-  for result in FindCharacter(name, owner, wave):
+def GetCharacter(name, owner, wave, wavelet):
+  for result in FindCharacter(name, owner, wave, wavelet):
     # get first, ignore the rest
     return result.text
   return None
 
 def ClearCharacterForOwner(name, owner):
   deleted = 0
-  for char in FindCharacter(name, owner, 'example.com!invalidWave'):
+  for char in FindCharacter(name, owner, 'example.com!invalidWave', 'example.com!conv+root'):
     if char.owner == owner:
       char.delete()
       deleted += 1
@@ -159,10 +159,14 @@ def DeleteCharacterBlip(wave, wavelet, blip):
     char.delete()
 
 def SaveCharacter(name, owner, wave, wavelet, blip, text):
-  char = Characters.all().filter('name =', name).filter('owner =', owner).filter('wave =', wave).get()
+  # There Can Be Only One. Wipe cache of all other characters of this name in this wave (including
+  # other wavelets) if saving in the toplevel wavelet, otherwise just affect the wavelet.
+  # The goal is that the character you see is the character it'll use.
+
+  # Update current blip, or make a new one
+  char = Characters.all().filter('wave = ', wave).filter('wavelet =', wavelet).filter('blip =', blip).get()
   if not char:
     char = Characters()
-
   char.name = name
   char.owner = owner
   char.wave = wave
@@ -171,3 +175,12 @@ def SaveCharacter(name, owner, wave, wavelet, blip, text):
   char.text = text
   char.date = datetime.datetime.now()
   char.put()
+
+  # Clear any other same-named characters in this wave (or wavelet). Should this be an error?
+  char_query = Characters.all().filter('name =', name).filter('wave =', wave)
+  if not '!conv+root' in wavelet:
+    char_query = char_query.filter('wavelet =', wavelet)
+  for old_char in char_query.fetch(100):
+    if old_char.key() != char.key(): # don't delete myself
+      old_char.delete()
+

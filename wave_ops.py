@@ -96,13 +96,13 @@ def OnBlipSubmitted(properties, context):
   def WaveCharacterSaver(sheet):
     name = sheet.name
     #logging.debug('WaveCharacterSaver: name="%s" blipId=%s', name, blipId)
-    persist.SaveCharacter(name, modifier, waveId, waveletId, blipId, str(sheet))
+    persist.SaveCharacter(name, modifier, waveId, waveletId, blipId, sheet.__str__())
     #if blipId:
-    #  SetTextOfBlip(context, waveId, waveletId, blipId, str(sheet))
+    #  SetTextOfBlip(context, waveId, waveletId, blipId, sheet.__str__())
 
   def WaveCharacterGetter(name):
     logging.debug('WaveCharacterGetter: name="%s"', name)
-    sheet_txt = persist.GetCharacter(name, modifier, waveId)
+    sheet_txt = persist.GetCharacter(name, modifier, waveId, waveletId)
     if not sheet_txt:
       sheet_txt = persist.GetSheet(name) # backwards compatible
     if sheet_txt:
@@ -119,7 +119,7 @@ def OnBlipSubmitted(properties, context):
       msg = [txt] + list(attrs)
       out.append((msg, None))
 
-    chars = list(persist.FindCharacter(name, modifier, waveId))
+    chars = list(persist.FindCharacter(name, modifier, waveId, waveletId))
     if not chars:
       show('no matches for "%s"' % name, ('style/color', 'red'))
     for idx, char in enumerate(chars):

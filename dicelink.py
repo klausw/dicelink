@@ -19,6 +19,7 @@ import persist
 FROM_FULL_URL_RE = re.compile(r'restored:wave:([^,]*)')
 
 ANON_CAMPAIGN = 'Anonymous'
+WAVELET_ROOT = 'googlewave.com!conv+root' # FIXME!
 
 def canonical_campaign(campaign):
   m = FROM_FULL_URL_RE.search(campaign)
@@ -97,7 +98,7 @@ class Roll(webapp.RequestHandler):
       
     def getter(name):
       logging.debug('Getter: name="%s"', name)
-      sheet_txt = persist.GetCharacter(name, wave_uid, waveId)
+      sheet_txt = persist.GetCharacter(name, wave_uid, waveId, WAVELET_ROOT)
       if sheet_txt:
 	return charsheet.CharSheet(sheet_txt)
 
