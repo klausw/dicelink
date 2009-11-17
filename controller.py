@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import cgi
 import logging
 import random
@@ -21,7 +24,7 @@ EXPR_RE = re.compile(r'''
 SPECIAL_EXPR_RE = re.compile(r'^\[ \! (.*) \]$', re.X)
 
 PARENS_RE = re.compile(r'\(.*\)')
-WORD_RE = re.compile(r'(\w+)')
+WORD_RE = re.compile(ur'([\w\u0080-\uffff]+)')
 STRIKETHROUGH_RE = re.compile(r'\/\* (.*?) \*\/', re.X)
 
 def handle_text(txt, defaultgetter, defaultsetter, replacer, storage):
@@ -199,8 +202,8 @@ def handle_expr(sym, expr):
       out.append([value, ('style/fontWeight', 'bold')])
       log.append(detail + value)
   except eval.ParseError, e:
-    out.append([str(e), ('style/color', 'red')])
-    log.append(str(e))
+    out.append([e.__str__(), ('style/color', 'red')])
+    log.append(e.__str__())
   return out, log
 
 if __name__ == '__main__':
@@ -329,6 +332,11 @@ if __name__ == '__main__':
     Skill: 5
   ''').save(storage)
 
+  charsheet.CharSheet(u'''
+    Name: 天地
+    力: 3d6
+  ''').save(storage)
+
   tests = [
     '[Warrior:Axe]',
     '[ Warrior: Speed ]',
@@ -384,6 +392,8 @@ if __name__ == '__main__':
     '[withMaul critical2 Power One Damage]',
 
     u'[macrotest::Pow] [super Pow] [enh7 Pow] [add10 Pow] [super add10 Pow]',
+    u'[天地:: 力] [力]',
+    u'[天地mistype: 力]',
 
     '[TrailingSpace: Skill]',
   ]

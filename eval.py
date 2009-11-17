@@ -28,10 +28,10 @@ import sys
 #
 # Examples:
 
-OBJECT_RE = re.compile(r'''
+OBJECT_RE = re.compile(ur'''
   (?:
     (?P<func>
-      \w+
+      [\w\u0080-\uffff]+
     )
     \(
       (?P<fexpr> .* )
@@ -39,7 +39,7 @@ OBJECT_RE = re.compile(r'''
   ) |
   (?:
     (?P<fpipe>
-      \w+
+      [\w\u0080-\uffff]+
     )
     \s*
     \$  # func $ arg
@@ -55,10 +55,14 @@ OBJECT_RE = re.compile(r'''
     (?: b (?P<limit> \d+ ) )? 
   ) |
   (?P<symbol>
-    \w*[_A-Za-z][\w']*
+    [\w\u0080-\uffff]*
+    [_A-Za-z\u0080-\uffff]
+    [\w\u0080-\uffff']*
     (?:
       \s+
-      [_A-Za-z][\w']*
+      [\w\u0080-\uffff]*
+      [_A-Za-z\u0080-\uffff]
+      [\w\u0080-\uffff']*
     )*
   ) |
   (?P<number>
@@ -112,7 +116,7 @@ class Result(object):
   def detail(self, additional=''):
     maybe_constant = ''
     if self.constant_sum != 0:
-      maybe_constant = '+' + str(self.constant_sum)
+      maybe_constant = '+' + str(self.constant_sum) # digits
     if not self.has_detail():
       return ''
     return (self._detail + additional + maybe_constant).replace('--','').replace('+-', '-')
@@ -746,7 +750,10 @@ def ParseExpr(expr, sym, parent_env):
     else:
       return default
 
-  expr = str(expr).lstrip()
+  if isinstance(expr, basestring):
+    expr = expr.lstrip()
+  else:
+    expr = str(expr)
   start = 0
   sign = +1
   while True:
@@ -933,6 +940,9 @@ if __name__ == '__main__':
     'Enh': 2,
     'Bash': 'd20 + StrP + Enh',
     'Hometown': '"New York"',
+    "Quot'1": 1,
+    "Test Quot'2": 2,
+    "weird 1z'3": 3,
     'e$$': Function(['Count', 'TN'], 'count(>= TN, explode(d(Count, 6)))'),
     '$es$': Function(['x', 'y'], 'e(x,y)'),
     'fact$': Function(['n'], 'if(n <= 1, n, mul(n, fact(n - 1)))'),
@@ -1075,6 +1085,9 @@ if __name__ == '__main__':
     ('withEnhUnicode MeleeBonus', 9),
     ('withEnh8 MeleeBonus', 13),
     ('withEnh8 withStr20 MeleeBonus', 14),
+    ("Quot'1", 1),
+    ("Test Quot'2", 2),
+    ("weird 1z'3", 3),
 
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),

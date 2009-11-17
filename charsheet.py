@@ -6,14 +6,14 @@ import roll
 
 # Name: Value
 # Long Name: complex value; Another Name: another value
-ITEMS_RE=re.compile(r'''
+ITEMS_RE=re.compile(ur'''
   \s*
   (?:
-    (?P<abbr> \w+ (?:\(\))?)
+    (?P<abbr> [\w\u0080-\uffff]+ (?:\(\))?)
     : \s*
   )?
   (?P<sym>
-    [(]?[_a-z][\w '(),]*
+    [(]?[_a-z\u0080-\uffff][\w\u0080-\uffff' (),]*
   ) : \s*
   (?P<exp>
     [^;\n]*
