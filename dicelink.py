@@ -16,20 +16,8 @@ import roll
 import eval
 import persist
 
-FROM_FULL_URL_RE = re.compile(r'restored:wave:([^,]*)')
-
 ANON_CAMPAIGN = 'Anonymous'
 WAVELET_ROOT = 'googlewave.com!conv+root' # FIXME!
-
-def canonical_campaign(campaign):
-  m = FROM_FULL_URL_RE.search(campaign)
-  if m:
-    campaign = m.group(1)
-
-  # Undo weird URL expansion
-  campaign = campaign.replace('%252B', '+')
-  campaign = campaign.replace('%2B', '+')
-  return campaign
 
 class MainPage(webapp.RequestHandler):
   def get(self):
@@ -38,7 +26,7 @@ class MainPage(webapp.RequestHandler):
       url_linktext = 'Logout'
       is_logged_in = True
       campaign = self.request.get('campaign', ANON_CAMPAIGN) 
-      campaign = canonical_campaign(campaign)
+      campaign = persist.canonical_campaign(campaign)
     else:
       url = users.create_login_url(self.request.uri)
       url_linktext = 'Login'
@@ -83,7 +71,7 @@ class Roll(webapp.RequestHandler):
       email = 'Anonymous@example.com'
     content = self.request.get('content') # not HTML escaped!
     campaign = self.request.get('campaign', ANON_CAMPAIGN)
-    campaign = canonical_campaign(campaign)
+    campaign = persist.canonical_campaign(campaign)
 
     if not '[' in content:
       content = '[' + content + ']'

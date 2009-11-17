@@ -47,6 +47,8 @@ EXPR_RE = re.compile(r'''
   \]
   ''', re.X)
 
+NUM_ANNO_RE = re.compile(r'\(\d+\)')
+
 def OnRobotAdded(properties, context):
   """Invoked when the robot has been added."""
   root_wavelet = context.GetRootWavelet()
@@ -162,6 +164,35 @@ def OnBlipSubmitted(properties, context):
   storage.add_special('clear', WaveCharacterClearer)
 
   # update info from character sheets if present - currently disabled
+  if blip.IsRoot():
+    links = []
+    offset = 0
+    for anno in blip.GetAnnotations():
+      if 'link/' in anno.name:
+	link = persist.canonical_campaign(anno.value)
+	num = 0
+	if '!w+' in link:
+	  num = persist.CharactersInWave(link)
+	  logging.info('root blip link %s: num=%d', link, num)
+	if num:
+	  links.append(link)
+	  new_anno = '(%d)' % num
+	else:
+	  new_anno = ''
+	l_start = anno.range.start
+	l_end = anno.range.end
+	m = NUM_ANNO_RE.search(txt[l_start:])
+	if m:
+	  l_start += m.start()
+	  l_end = l_start + len(m.group())
+	else:
+	  l_start = l_end
+	offset += SetTextWithAttributes(doc, l_start + offset, l_end + offset,
+	  [[new_anno, ('style/color', 'gray')]])
+    if links:
+      persist.SetSearchList(waveId, links)
+
+  # don't stop processing, a root blip might be character sheet or contain die rolls
   if 'dicelink: Status' in txt:
     #persist.SaveBlipMap('Status', blip.GetWaveId(), blip.GetWaveletId(), blip.GetId())
     pass
