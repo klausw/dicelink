@@ -96,6 +96,8 @@ class ParseError(Exception):
 MAX_ROLLS=2000
 MAX_OBJECTS = 900 # <1000, or Python breaks first on recursion
 
+DEBUG_PARSER = False
+
 class Result(object):
   def __init__(self, value, detail, flags, is_constant=True, is_numeric=True):
     self._value = value
@@ -687,6 +689,7 @@ def first_paren_expr(fexpr):
     elif char == ')' and not in_quotes:
       open_parens -= 1
       if open_parens < 0:
+	idx -= 1 # do not want
 	break
     elif char == '"':
       in_quotes = not in_quotes
@@ -695,7 +698,7 @@ def first_paren_expr(fexpr):
       argidx = idx+1
   if open_parens > 0:
     raise ParseError('Missing closing parenthesis in "%s"' % fexpr)
-  args.append(fexpr[argidx:])
+  args.append(fexpr[argidx:idx+1])
   fexpr = fexpr[:idx+1]
   return args, fexpr
 
@@ -727,8 +730,10 @@ def ParseExpr(expr, sym, parent_env):
   # propagate back up unintentionally.
   env = parent_env.copy()
 
-  if not 'stats' in env:
-    env['stats'] = {'rolls': 0, 'objects': 0}
+  if 'stats' in env:
+    env['stats']['level'] += 1
+  else:
+    env['stats'] = {'rolls': 0, 'objects': 0, 'level': 0}
 
   def Add(new_result, sign):
     #logging.debug('Add: %s, sign=%s', repr(new_result), sign)
@@ -750,6 +755,10 @@ def ParseExpr(expr, sym, parent_env):
     else:
       return default
 
+  def DEBUG(*args):
+    if DEBUG_PARSER:
+      logging.debug('ParseExpr: ' + '  ' * env['stats']['level'] + args[0], *args[1:])
+
   if isinstance(expr, basestring):
     expr = expr.lstrip()
   else:
@@ -760,7 +769,7 @@ def ParseExpr(expr, sym, parent_env):
     env['stats']['objects'] += 1
     if env['stats']['objects'] > MAX_OBJECTS:
       raise ParseError('Evaluation limit exceeded. Bad recursion?')
-    #logging.debug('matcher: expr "%s" <!> "%s"', expr[:start], expr[start:])
+    DEBUG('expr %s{}%s', expr[:start], expr[start:])
 
     # Optional +/-
     msign = PLUSMINUS_RE.match(expr[start:])
@@ -773,7 +782,10 @@ def ParseExpr(expr, sym, parent_env):
 
     m = OBJECT_RE.match(expr[start:])
     if not m:
-      break
+      if not expr[start:]:
+	break
+      raise ParseError('Syntax error in "%s/*%s*/"' % (expr[:start], expr[start:]))
+    DEBUG('dict: %s', ', '.join([k for k, v in m.groupdict().iteritems() if v]))
     matched = m.group(0)
     match_end = m.end()
     #logging.debug('expr "%s"', matched)
@@ -866,7 +878,7 @@ def ParseExpr(expr, sym, parent_env):
 	match_end = m.start('fexpr') + len(fexpr) + 1
       else:
 	args = fexpr.split(',')
-      # print 'fexpr=%s' % fexpr
+      DEBUG('args=%s', repr(args))
 
       ret = eval_fname(sym, env, fname, args)
       if ret:
@@ -918,7 +930,8 @@ def ParseExpr(expr, sym, parent_env):
 
   # Add stats for debugging
   result[0].stats = env['stats']
-  #logging.debug('Result for %s: %s', repr(expr), repr(result[0]))
+  env['stats']['level'] -= 1
+  DEBUG('=%s', repr(result[0]))
   return result[0]
 
 if __name__ == '__main__':
@@ -1041,14 +1054,12 @@ if __name__ == '__main__':
     ('slice(6d10, -2)', '6d10(/*2*/,/*8*/,/*3*/,/*1*/,2,3)=5'),
     ('slice(6d10, 0, 1)', '6d10(3,/*6*/,/*5*/,/*4*/,/*7*/,/*3*/)=3'),
     ('pick(<3, 10d10)', 3),
-
     ('bw(12,4)', 8),
     ('bw(12,4)', 3),
     ('bw(8,4)', 2),
     ('bw(7,4)', 7),
     ('bw(6,4)', 2),
     ('bw(5,4)', 4),
-
     ('repeat(3, d20+2)', '(d20(9)+2=11, d20(14)+2=16, d20(19)+2=21:Critical)=48'),
     ('val(3d6)', r'/^=10$/'),
     ('lval(3d6)', r'/^\(3, 6, 1\)/'),
@@ -1059,7 +1070,9 @@ if __name__ == '__main__':
     ('d(1,d(1,1))+10', 11),
     ('d(1,d(1,1) ) + 10', 11),
     ('d( 1 , d( 1 , 1 ) ) + 10', 11),
+    #('with(n=d20, if(n>20, n, d20))', '/*d20(17)*/d20(8)=8'),
 
+    # everything after this doesn't roll dice, order doesn't matter.
     ('Hometown', '="New York"'),
     ('fact(5)', 120),
     ('fib(7)', 13),
@@ -1091,10 +1104,12 @@ if __name__ == '__main__':
     ('"a {Hometown} b"', r'/^="a New York b"$/'),
     ('with(x=Enh + Hometown, "a {x} b")', r'/^="a 2:New York b"$/'),
 
+    # Expected errors
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
     ('50x(50d6)', 'ParseError'),
     ('Enh xyz', 'not a function'),
+    ('if(2+(1==1), 2, 3)', 'Syntax error in "2+/*(1==1)*/'),
   ]
 
   # FIXME: put into proper test
@@ -1103,6 +1118,7 @@ if __name__ == '__main__':
 
   args = sys.argv[1:]
   if args:
+    DEBUG_PARSER = True
     tests = [(x, 0) for x in args]
 
   ok = 0
