@@ -784,7 +784,10 @@ def ParseExpr(expr, sym, parent_env):
     if not m:
       if not expr[start:]:
 	break
-      raise ParseError("Unsupported syntax '%s' in '%s'." % (expr[start:], expr))
+      if start:
+	raise ParseError("Unsupported syntax '%s' in '%s'." % (expr[start:], expr))
+      else:
+	raise ParseError("Unsupported syntax '%s'." % expr)
     DEBUG('dict: %s', ', '.join([k for k, v in m.groupdict().iteritems() if v]))
     matched = m.group(0)
     match_end = m.end()
@@ -1110,6 +1113,7 @@ if __name__ == '__main__':
     ('50x(50d6)', 'ParseError'),
     ('Enh xyz', 'not a function'),
     ('if(2+(1==1), 2, 3)', "Unsupported syntax '(1==1)' in '2+(1==1)'"),
+    ('if((1==1), 2, 3)', "Unsupported syntax '(1==1)'"),
   ]
 
   # FIXME: put into proper test
