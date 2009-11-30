@@ -551,7 +551,7 @@ def fn_with(sym, env, *args):
   expr = args[-1]
   new_env = {}
   for binding in bindings:
-    lhs, rhs = binding.split('=')
+    lhs, rhs = binding.split('=', 1)
     lhs = lhs.strip()
     rhs = rhs.strip()
     rhs_val = sym.get(rhs)
@@ -1073,7 +1073,9 @@ if __name__ == '__main__':
     ('d(1,d(1,1))+10', 11),
     ('d(1,d(1,1) ) + 10', 11),
     ('d( 1 , d( 1 , 1 ) ) + 10', 11),
-    #('with(n=d20, if(n>20, n, d20))', '/*d20(17)*/d20(8)=8'),
+    #FIXME#('with(n=d20, if(n>20, n, d20))', '/*d20(17)*/d20(8)=8'),
+    #FIXME#('if(count(==3,10d6)>2,"many","few")', -1),
+    ('with(c=count(==3,10d6), if(c>2,"many","few"))', 'few'), 
 
     # everything after this doesn't roll dice, order doesn't matter.
     ('Hometown', '="New York"'),
