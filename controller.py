@@ -9,6 +9,10 @@ import re
 import charsheet
 import eval
 
+DEFAULT_SYM = {
+  '$x': eval.Function(['__n'], 'repeat(__n, $)'),
+}
+
 EXPR_RE = re.compile(r'''
   \[
   (?:        # "CharacterName:", optional
@@ -144,6 +148,8 @@ def get_char_and_template(storage, charname):
       log.append('template "%s" (%d),' % (template_name, len(template.dict)))
     else:
       out.append(['Template "%s" not found. ' % template_name, ('style/color', 'red')])
+  for k, v in DEFAULT_SYM.iteritems():
+    sym.setdefault(k, v)
   return sym, char, template, out, log
 
 def get_expansions(expr, char, template):
@@ -396,6 +402,8 @@ if __name__ == '__main__':
     u'[天地mistype: 力]',
 
     '[TrailingSpace: Skill]',
+
+    '[: 3x d20]',
   ]
   
   defaultchar = ['Test']
