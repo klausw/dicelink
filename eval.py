@@ -30,6 +30,11 @@ import sys
 
 OBJECT_RE = re.compile(ur'''
   (?:
+    \(
+      (?P<parexpr> .* )
+    \)
+  ) |
+  (?:
     (?P<func>
       [\w\u0080-\uffff]+
     )
@@ -77,7 +82,30 @@ NUMBER_RE = re.compile(r'\d+')
 
 INTERPOLATE_RE = re.compile(r'\{([^}]*)\}')
 
-PLUSMINUS_RE = re.compile(r'\s* ([-+])? \s*', re.X)
+OP_RE = re.compile(r'''
+  \s*
+  ( \-
+  | \+
+  | \<=
+  | \<
+  | \>=
+  | \>
+  | \!=
+  | ==
+  | \*
+  | \/
+  #FIXME#| , 
+  )? \s*
+''', re.X)
+
+OP_PRECEDENCE = {
+  '*': 2,
+  '/': 2,
+  '+': 1,
+  '-': 1,
+  # rest has prio zero
+  ',': -1,
+}
 
 def LookupSym(name, sym):
   while True:
@@ -482,16 +510,7 @@ RESULT_FALSE = Result(0, '', {}, is_numeric=False)
 RESULT_NIL = Result(0, '', {}, is_numeric=False)
 
 def boolean(sym, env, cond):
-  if '(' in cond:
-    ret = ParseExpr(cond, sym, env)
-    return (ret.value() != 0)
-  lhs, op, rhs = relation(sym, env, cond)
-  lval = ValOrString(lhs, sym, env)
-  rval = ValOrString(rhs, sym, env)
-  if op(lval, rval):
-    return True
-  else:
-    return False
+  return ParseExpr(cond, sym, env).value()
 
 def fn_ifbound(sym, env, sym1, sym2, iftrue, iffalse):
   sym1 = sym1.strip()
@@ -724,7 +743,7 @@ def ParseExpr(expr, sym, parent_env):
     return expr
   # ignore Nx(...) for now
   result = []
-  signs = []
+  ops = []
 
   # Make a shallow copy of the environment so that changes from child calls don't
   # propagate back up unintentionally.
@@ -735,17 +754,65 @@ def ParseExpr(expr, sym, parent_env):
   else:
     env['stats'] = {'rolls': 0, 'objects': 0, 'level': 0}
 
-  def Add(new_result, sign):
-    #logging.debug('Add: %s, sign=%s', repr(new_result), sign)
+  def ShiftVal(new_result):
+    #logging.debug('ShiftVal: %s, sign=%s', repr(new_result), operator)
     result.append(new_result)
-    signs.append(sign)
 
-  def AddFlag(flag, value):
-    if not result:
-      result.append(RESULT_NIL)
-      signs.append(1)
-    result[-1] = copy.deepcopy(result[-1])
-    result[-1].flags[flag] = value
+  def Reduce(rhs, op):
+    # must not modify constants such as RESULT_NIL
+    lhs = copy.deepcopy(result.pop())
+    if lhs.is_list:
+      # flatten into scalar
+      lhs = lhs.to_scalar()
+    if rhs.is_list:
+      rhs = rhs.to_scalar()
+    DEBUG('Reduce, op=%s, lhs=%s, rhs=%s', op, lhs, rhs)
+
+    lval = lhs._value
+    rval = rhs.value()
+    if op == '+':
+      lval += rval
+      lhs.constant_sum += rhs.constant_sum
+    elif op == '-':
+      lval -= rval
+      lhs.constant_sum -= rhs.constant_sum
+    elif op == '*':
+      lval *= rval
+      lhs.constant_sum *= rhs.constant_sum
+    elif op == '/':
+      lval /= rval
+      lhs.constant_sum /= rhs.constant_sum
+    elif op in ('==', '!=', '<', '<=', '>', '>='):
+      if op == '==':
+	lval = (lval == rval and lhs.publicval() == rhs.publicval())
+      elif op == '!=':
+	lval = (lval != rval or lhs.publicval() != rhs.publicval())
+      elif op == '<':
+	lval = (lval < rval)
+      elif op == '<=':
+	lval = (lval <= rval)
+      elif op == '>':
+	lval = (lval > rval)
+      elif op == '>=':
+	lval = (lval >= rval)
+
+      lhs.constant_sum = 0
+      lhs._is_numeric = False
+      rhs._is_numeric = False
+    lhs._value = lval
+    if rhs.is_numeric():
+      lhs._is_numeric = True
+    new_detail = rhs._detail
+    if new_detail and not rhs.is_constant:
+      if op == '+' and not lhs._detail:
+	lhs._detail = new_detail
+      else:
+	lhs._detail = op.join([lhs._detail, new_detail])
+    if not rhs.is_constant:
+      lhs.is_constant = False
+    lhs.flags.update(rhs.flags)
+    DEBUG('Reduce to %s', lhs)
+    result.append(lhs)
 
   def GetNotNone(dict, key, default):
     """Like {}.get(), but return default if the key is present with value None"""
@@ -764,21 +831,26 @@ def ParseExpr(expr, sym, parent_env):
   else:
     expr = str(expr)
   start = 0
-  sign = +1
   while True:
     env['stats']['objects'] += 1
     if env['stats']['objects'] > MAX_OBJECTS:
       raise ParseError('Evaluation limit exceeded. Bad recursion?')
     DEBUG('expr %s{}%s', expr[:start], expr[start:])
 
-    # Optional +/-
-    msign = PLUSMINUS_RE.match(expr[start:])
-    if msign:
-      if msign.group(1) == '-':
-        sign = -1
-      else:
-        sign = 1
-      start += msign.end()
+    # Optional operator
+    mop = OP_RE.match(expr[start:])
+    if mop:
+      op = mop.group(1)
+      start += mop.end()
+      if op:
+	DEBUG('got operator %s', mop.group(1))
+	if ops and OP_PRECEDENCE.get(ops[-1], 0) >= OP_PRECEDENCE.get(op, 0):
+	  Reduce(result.pop(), ops.pop())
+	ops.append(mop.group(1))
+
+	# If first item is negative, need to subtract it from zero (NIL will do)
+	if mop.group(1) == '-' and not result:
+	  ShiftVal(RESULT_NIL)
 
     m = OBJECT_RE.match(expr[start:])
     if not m:
@@ -799,11 +871,16 @@ def ParseExpr(expr, sym, parent_env):
         reroll_pred = lambda x: x < limit
       else:
         reroll_pred = env.get('reroll_if', never)
-      Add(RollDice(int(GetNotNone(dict, 'num_dice', 1)),
+      ShiftVal(RollDice(int(GetNotNone(dict, 'num_dice', 1)),
 	           int(GetNotNone(dict, 'sides', 1)),
-	           DynEnv(env, 'reroll_if', reroll_pred)), sign)
+	           DynEnv(env, 'reroll_if', reroll_pred)))
     elif dict['number']:
-      Add(Result(int(matched), '', {}), sign)
+      ShiftVal(Result(int(matched), '', {}))
+    elif dict['parexpr']:
+      pexpr = dict['parexpr']
+      args, pexpr = first_paren_expr(pexpr)
+      match_end = m.start('parexpr') + len(pexpr) + 1
+      ShiftVal(ParseExpr(pexpr, sym, env))
     elif dict['symbol']:
       expansion = LookupSym(matched, sym)
       if expansion is None:
@@ -854,19 +931,19 @@ def ParseExpr(expr, sym, parent_env):
 	  expansion = func.eval(sym, env, args)
       if not isinstance(expansion, Result):
         expansion = ParseExpr(expansion, sym, env)
-      Add(expansion, sign)
+      ShiftVal(expansion)
     elif dict['string']:
       def eval_string(match):
         return ParseExpr(match.group(1), sym, env).publicval().replace('"', '')
       # set flag, including double quotes
       new_string = INTERPOLATE_RE.sub(eval_string, matched)
-      AddFlag(new_string, True)
+      ShiftVal(Result(0, [], {new_string: True}, is_numeric=False))
     elif dict['fpipe']:
       fname = dict['fpipe']
       fexpr = dict['fpinput']
       ret = eval_fname(sym, env, fname, [fexpr])
       if ret:
-	Add(ret, sign)
+	ShiftVal(ret)
       else:
         raise ParseError('Unknown function "%s(%s)"' % (fname, fexpr))
     elif dict['func']:
@@ -885,13 +962,13 @@ def ParseExpr(expr, sym, parent_env):
 
       ret = eval_fname(sym, env, fname, args)
       if ret:
-	Add(ret, sign)
+	ShiftVal(ret)
       elif N_TIMES_RE.match(fname):
         ntimes = int(N_TIMES_RE.match(fname).group(1))
 	if ntimes > 100:
 	  raise ParseError('ntimes: number too big')
 	rolls = ResultList([ParseExpr(fexpr, sym, env) for _ in xrange(ntimes)])
-	Add(rolls, sign)
+	ShiftVal(rolls)
       else:
         raise ParseError('Unknown function "%s(%s)"' % (fname, ','.join(['_']*len(args))))
 
@@ -900,42 +977,24 @@ def ParseExpr(expr, sym, parent_env):
   # No results? Set to NIL
   if not result:
     result.append(RESULT_NIL)
-    signs.append(1)
 
-  # If first item is negative, need to subtract it from zero (NIL will do)
-  if signs[0] < 0:
-    result.insert(0, RESULT_NIL)
-    signs.insert(0, 1)
-
-  for new_result, sign in zip(result[1:], signs[1:]):
-    result[0] = copy.deepcopy(result[0])
-    if result[0].is_list:
-      # flatten into scalar
-      result[0] = result[0].to_scalar()
-    if new_result.is_list:
-      new_result = new_result.to_scalar()
-    result[0]._value += sign * new_result.value()
-    result[0].constant_sum += sign * new_result.constant_sum
-    if new_result.is_numeric():
-      result[0]._is_numeric = True
-    new_detail = new_result._detail
-    if new_detail and not new_result.is_constant:
-      if sign < 0:
-	result[0]._detail = result[0]._detail + '-' + new_detail
-      else:
-        if result[0]._detail:
-	  result[0]._detail = result[0]._detail + '+' + new_detail
-	else:
-	  result[0]._detail = new_detail
-    if not new_result.is_constant:
-      result[0].is_constant = False
-    result[0].flags.update(new_result.flags)
+  while len(result)>1:
+    DEBUG('Emptying stack, op=%s', op)
+    if ops:
+      op = ops.pop()
+    else:
+      op = '+'
+    Reduce(result.pop(), op)
+    
+  #for new_result, op in zip(result[1:], ops[1:]):
+  #  result[0] = Reduce(result[0], new_result, op)
 
   # Add stats for debugging
-  result[0].stats = env['stats']
+  ret = result[0]
+  ret.stats = env['stats']
   env['stats']['level'] -= 1
-  DEBUG('=%s', repr(result[0]))
-  return result[0]
+  DEBUG('=%s', repr(ret))
+  return ret
 
 if __name__ == '__main__':
   random.seed(2) # specially picked, first d20 gets a 20
@@ -1020,6 +1079,8 @@ if __name__ == '__main__':
     ('12x(Bash)', 'd20(8)+7=15, d20(20)+7=27:Critical:Nat20,'),
     ('3x(Deft Strike)', '(d4(4)+4=8, d4(3)+4=7, d4(2)+4=6)=21'),
     ('div(7, 2)', 3),
+    ('7 / 2', 3),
+    ('7 * 2', 14),
     ('div(3d6+5, 2)', 9),
     ('d20+5 "Prone"', 16),
     ('42 "Push {StrMod} squares"', 42),
@@ -1084,7 +1145,6 @@ if __name__ == '__main__':
     ('if(not(and(1!=2, 1==2)), 100, 200) + 10', 110),
     ('if(1==1, "with,comma", "more,comma") + "foo"', '="foo":"with,comma"'),
     ('if(1==2, 3 "with,comma", 4 "unbalanced)paren") + 10', '=14:"unbalanced)paren"'),
-    ('if(1==2, 3, mul(2,3)', '/ParseError.*Missing closing parenthesis/'),
     ('if("a"=="a", 1, 2)', 1),
     ('if("a"=="b", 1, 2)', 2),
     ('with(x="a" "b", y="b" "a", if(x==y, 1, 2))', 1),
@@ -1108,14 +1168,27 @@ if __name__ == '__main__':
     ("weird 1z'3", 3),
     ('"a {Hometown} b"', r'/^="a New York b"$/'),
     ('with(x=Enh + Hometown, "a {x} b")', r'/^="a 2:New York b"$/'),
+    ('(4+3)-(2+1)', 4),
+    ('(4+(3-2))-(2+1)', 2),
+    ('1+2+3-4', 2),
+    ('1+2*3-4', 3), # would be 5 without precedence rule
+    ('1+(2*3)-4', 3), 
+    ('(1+2)*3-4', 5),
+    ('-NegArmor', 2),
+    ('1==1', 1),
+    ('1==2', 0),
+    ('1+2==1+1+1', 1),
+    ('if((1==1), 2, 3)', 2),
+    ('if((1==2), 2, 3)', 3),
+    ('if(2+(1==1), 2, 3)', 2), # boolean treated as numeric, not sure if this is expected
+    ('', r'/^=$/'),
 
     # Expected errors
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
     ('50x(50d6)', 'ParseError'),
     ('Enh xyz', 'not a function'),
-    ('if(2+(1==1), 2, 3)', "Unsupported syntax '(1==1)' in '2+(1==1)'"),
-    ('if((1==1), 2, 3)', "Unsupported syntax '(1==1)'"),
+    ('if(1==2, 3, mul(2,3)', '/ParseError.*Missing closing parenthesis/'),
   ]
 
   # FIXME: put into proper test
