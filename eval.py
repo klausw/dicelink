@@ -1045,9 +1045,9 @@ if __name__ == '__main__':
     'withEnh$': Function(['N'], 'with(Enh=N, $)'),
     'withStr$': Function(['Str'], '$'),
     'L10': 'val(d10-1)',
-    'SuccessMarker$$': Function(['TN', 'roll'], 'if(roll <= TN, "success {roll} vs {TN} doS:{div(TN-roll,10)}", "failure {roll} vs {TN} doF:{div(roll-TN,10)}")'),
+    'SuccessMarker$$': Function(['TN', 'roll'], 'if(roll <= TN, "success {roll} vs {TN} doS:{(TN-roll)/10}", "failure {roll} vs {TN} doF:{(roll-TN)/10}")'),
     'Difficulty': 10,
-    'sBasic$': Function(['Stat'], 'with(Difficulty=Difficulty+div(Stat,2),$)'), 
+    'sBasic$': Function(['Stat'], 'with(Difficulty=Difficulty+Stat/2,$)'), 
   }
 
   sym_tests = [
