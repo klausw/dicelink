@@ -512,22 +512,6 @@ RESULT_NIL = Result(0, '', {}, is_numeric=False)
 def boolean(sym, env, cond):
   return ParseExpr(cond, sym, env).value()
 
-def fn_ifbound(sym, env, sym1, sym2, iftrue, iffalse):
-  sym1 = sym1.strip()
-  sym2 = sym2.strip()
-  val1 = sym.get(sym1)
-  val2 = sym.get(sym2)
-  if not val1:
-    raise ParseError('"%s" is not a symbol' % sym1)
-  if not val2:
-    raise ParseError('"%s" is not a symbol' % sym2)
-  val1 = val1.strip()
-  val2 = val2.strip()
-  if val1 == val2 or val1 == sym2:
-    return ParseExpr(iftrue, sym, env)
-  else:
-    return ParseExpr(iffalse, sym, env)
-
 def fn_if(sym, env, cond, iftrue, iffalse):
   if boolean(sym, env, cond):
     return ParseExpr(iftrue, sym, env)
@@ -563,6 +547,8 @@ def fn_not(sym, env, arg):
     return RESULT_FALSE
   return RESULT_TRUE
 
+BINDING_SPLIT_RE = re.compile(r'(.*?)(==|=)(.*)')
+
 def fn_with(sym, env, *args):
   if len(args) < 2:
     raise ParseError('with() needs at least two arguments')
@@ -570,11 +556,20 @@ def fn_with(sym, env, *args):
   expr = args[-1]
   new_env = {}
   for binding in bindings:
-    lhs, rhs = binding.split('=', 1)
+    m = BINDING_SPLIT_RE.match(binding)
+    lhs, op, rhs = m.groups()
     lhs = lhs.strip()
     rhs = rhs.strip()
-    rhs_val = sym.get(rhs)
-    if not rhs_val:
+    if op == '==':
+      # bind symbol synonym
+      rhs_val = sym.get(rhs)
+      if not rhs_val:
+	raise ParseError('"%s" is not a symbol, did you mean = instead of == in "%s"?' % (rhs, binding))
+    else:
+      #symval = sym.get(rhs)
+      #if symval:
+      #	if isinstance(symval, Function) or isinstance(symval, basestring):
+      #	  env['warnings'].append('use of %s to bind a symbol, did you mean == in "%s"?' % (op, binding))
       rhs_val = ParseExpr(rhs, sym, env)
     new_env[lhs] = rhs_val
   return eval_with(sym, env, new_env, expr)
@@ -648,7 +643,6 @@ FUNCTIONS = {
   'lval': fn_lval,
   ### undocumented
   'conflicttest': fn_conflicttest,
-  'ifbound': fn_ifbound,
   'reroll_if': fn_reroll_if,
   'list': fn_list,
   'nth': fn_nth,
@@ -752,7 +746,8 @@ def ParseExpr(expr, sym, parent_env):
   if 'stats' in env:
     env['stats']['level'] += 1
   else:
-    env['stats'] = {'rolls': 0, 'objects': 0, 'level': 0}
+    env['stats'] = {'rolls': 0, 'objects': 0, 'level': 1}
+    env['warnings'] = []
 
   def ShiftVal(new_result):
     #logging.debug('ShiftVal: %s, sign=%s', repr(new_result), operator)
@@ -770,6 +765,7 @@ def ParseExpr(expr, sym, parent_env):
 
     lval = lhs._value
     rval = rhs.value()
+    is_relop = False
     if op == '+':
       lval += rval
       lhs.constant_sum += rhs.constant_sum
@@ -783,6 +779,7 @@ def ParseExpr(expr, sym, parent_env):
       lval /= rval
       lhs.constant_sum /= rhs.constant_sum
     elif op in ('==', '!=', '<', '<=', '>', '>='):
+      is_relop = True
       if op == '==':
 	lval = (lval == rval and lhs.publicval() == rhs.publicval())
       elif op == '!=':
@@ -798,9 +795,8 @@ def ParseExpr(expr, sym, parent_env):
 
       lhs.constant_sum = 0
       lhs._is_numeric = False
-      rhs._is_numeric = False
     lhs._value = lval
-    if rhs.is_numeric():
+    if rhs.is_numeric() and not is_relop:
       lhs._is_numeric = True
     new_detail = rhs._detail
     if new_detail and not rhs.is_constant:
@@ -993,6 +989,9 @@ def ParseExpr(expr, sym, parent_env):
   ret = result[0]
   ret.stats = env['stats']
   env['stats']['level'] -= 1
+  if env['stats']['level'] == 0:
+    for warn in env['warnings']:
+      ret.flags['{Warning: %s}' % warn] = True
   DEBUG('=%s', repr(ret))
   return ret
 
@@ -1037,6 +1036,10 @@ if __name__ == '__main__':
     'withEnhUnicode': u'with(Enh=4, $)',
     'withEnh$': Function(['N'], 'with(Enh=N, $)'),
     'withStr$': Function(['Str'], '$'),
+    'L10': 'val(d10-1)',
+    'SuccessMarker$$': Function(['TN', 'roll'], 'if(roll <= TN, "success {roll} vs {TN} doS:{div(TN-roll,10)}", "failure {roll} vs {TN} doF:{div(roll-TN,10)}")'),
+    'Difficulty': 10,
+    'sBasic$': Function(['Stat'], 'with(Difficulty=Difficulty+div(Stat,2),$)'), 
   }
 
   sym_tests = [
@@ -1094,15 +1097,12 @@ if __name__ == '__main__':
     ('count(>=5, explode(d(10,4)))', 3),
     ('e(10, 7)', 3),
     ('10es7', 1),
-    ('with(Weapon=Dagger, Strike)', 7),
-    ('with(Weapon=Dagger, Destroy)', 11),
+    ('with(Weapon==Dagger, Strike)', 7),
+    ('with(Weapon==Dagger, Destroy)', 11),
     ('with(Weapon=Dagger+1, Destroy)', 10),
     ('Strike', 9),
     ('Destroy', 12),
     ('with(Enh=4, 3W + StrMod)', 25),
-    ('ifbound(Weapon, Sword, 1 "yes", 0 "no")', '=1:"yes"'),
-    ('with(Weapon=Sword, ifbound(Weapon, Sword, 1 "yes", 0 "no"))', '=1:"yes"'),
-    ('with(Weapon=Dagger, ifbound(Weapon, Sword, 1 "yes", 0 "no"))', '=0:"no"'),
 
     ('low(6d6)', 2),
     ('high(2d6) + 2', 6),
@@ -1137,6 +1137,9 @@ if __name__ == '__main__':
     #FIXME#('with(n=d20, if(n>20, n, d20))', '/*d20(17)*/d20(8)=8'),
     #FIXME#('if(count(==3,10d6)>2,"many","few")', -1),
     ('with(c=count(==3,10d6), if(c>2,"many","few"))', 'few'), 
+    ('with(a=L10, list(a, a, a, a, a, a, a, a))', '(4, 4, 4, 4, 4, 4, 4, 4)=32'),
+    ('with(a==L10, list(a, a, a, a, a, a, a, a))', '(4, 7, 9, 7, 4, 9, 3, 7)=50'),
+    ('SuccessMarker(50, d100)', '="failure 66 vs 50 doF:1"'),
 
     # everything after this doesn't roll dice, order doesn't matter.
     ('Hometown', '="New York"'),
@@ -1182,6 +1185,8 @@ if __name__ == '__main__':
     ('if((1==2), 2, 3)', 3),
     ('if(2+(1==1), 2, 3)', 2), # boolean treated as numeric, not sure if this is expected
     ('', r'/^=$/'),
+    ('sBasic10 Difficulty', 15),
+    ('sBasic(10) Difficulty', 15),
 
     # Expected errors
     ('10d6b7', 'ParseError'),
