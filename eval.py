@@ -715,7 +715,7 @@ def first_paren_expr(fexpr):
   fexpr = fexpr[:idx+1]
   return args, fexpr
 
-def eval_fname(sym, env, fname, args):
+def eval_fname(sym, env, fname, args, trailexpr):
   fn = FUNCTIONS.get(fname, None)
   func = None
   if not fn:
@@ -723,14 +723,21 @@ def eval_fname(sym, env, fname, args):
 
   args = [x.strip() for x in args]
   if func and isinstance(func, Function):
-    return func.eval(sym, env, args)
+    # FIXME, duplication
+    consume = 0
+    dollar = func.expansion.find('$')
+    if dollar >= 0:
+      func = Function(func.proto, func.expansion[:dollar] + trailexpr + func.expansion[dollar+1:])
+      #logging.debug('magic function: %s', repr(func.expansion))
+      consume = len(trailexpr)
+    return (func.eval(sym, env, args), consume)
   elif fn:
     try:
-      return fn(sym, env, *args)
+      return (fn(sym, env, *args), 0)
     except TypeError, e:
       logging.info('TypeError: %s', e, exc_info=True)
       raise ParseError('%s: unexpected args %s' % (fname, repr(args)))
-  return None
+  return (None, 0)
 
 def ParseExpr(expr, sym, parent_env):
   if isinstance(expr, Result):
@@ -937,7 +944,7 @@ def ParseExpr(expr, sym, parent_env):
     elif dict['fpipe']:
       fname = dict['fpipe']
       fexpr = dict['fpinput']
-      ret = eval_fname(sym, env, fname, [fexpr])
+      ret, unused_offset = eval_fname(sym, env, fname, [fexpr], '')
       if ret:
 	ShiftVal(ret)
       else:
@@ -956,9 +963,10 @@ def ParseExpr(expr, sym, parent_env):
 	args = fexpr.split(',')
       DEBUG('args=%s', repr(args))
 
-      ret = eval_fname(sym, env, fname, args)
+      ret, offset = eval_fname(sym, env, fname, args, expr[start + match_end:])
       if ret:
 	ShiftVal(ret)
+	match_end += offset
       elif N_TIMES_RE.match(fname):
         ntimes = int(N_TIMES_RE.match(fname).group(1))
 	if ntimes > 100:
