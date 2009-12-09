@@ -716,12 +716,16 @@ def first_paren_expr(fexpr):
   return args, fexpr
 
 def eval_fname(sym, env, fname, args, trailexpr):
-  fn = FUNCTIONS.get(fname, None)
+  #logging.debug('fname=%s args=%s trailexpr=%s', repr(fname), repr(args), repr(trailexpr))
   func = None
-  if not fn:
+  if '$' in fname:
+    func = sym.get(fname)
+  else:
     func = sym.get(fname + ('$' * len(args)))
+  if not func:
+    fn = FUNCTIONS.get(fname, None)
 
-  args = [x.strip() for x in args]
+  #args = [x.strip() for x in args]
   if func and isinstance(func, Function):
     # FIXME, duplication
     consume = 0
@@ -878,6 +882,7 @@ def ParseExpr(expr, sym, parent_env):
 	           int(GetNotNone(dict, 'sides', 1)),
 	           DynEnv(env, 'reroll_if', reroll_pred)))
     elif dict['number']:
+      DEBUG('number: %d', int(matched))
       ShiftVal(Result(int(matched), '', {}))
     elif dict['parexpr']:
       pexpr = dict['parexpr']
@@ -900,7 +905,7 @@ def ParseExpr(expr, sym, parent_env):
 	if expansion and isinstance(expansion, basestring): # FIXME, hack
 	  dollar = expansion.find('$')
 	  if dollar < 0:
-	    raise ParseError('Symbol "%s" is not magic (no $ in expansion)' % matched)
+	    raise ParseError('Symbol "%s" is not magic (no $ in expansion), missing operator before "%s" in "%s"?' % (matched, expr[match_end:], expr))
 	  marg = expr[match_end:]
 	  expansion = expansion[:dollar] + marg + expansion[dollar+1:]
 	  #logging.debug('magic expansion: %s', repr(expansion))
@@ -921,19 +926,18 @@ def ParseExpr(expr, sym, parent_env):
 	    raise ParseError('Symbol "%s" not found' % matched)
 	  
 	  if not isinstance(func, Function):
-	    raise ParseError('Symbol "%s" is not a function' % matched)
+	    raise ParseError('Symbol "%s" is not a function, missing operator before "%s" in "%s"?' % (matched, expr[match_end:], expr))
 
-	  # FIXME, duplication
 	  dollar = func.expansion.find('$')
 	  if dollar >= 0:
-	    marg = expr[start + match_end:]
-	    func = Function(func.proto, func.expansion[:dollar] + marg + func.expansion[dollar+1:])
-	    #logging.debug('magic function: %s', repr(func.expansion))
+	    #logging.debug('magic function: %s, args=%s', repr(func.expansion), repr(args))
+	    expansion, offset = eval_fname(sym, env, fname, args, expr[start + match_end:])
+	    match_end += offset
+	  else:
 	    expansion = func.eval(sym, env, args)
-	    match_end = len(expr)
-	  expansion = func.eval(sym, env, args)
       if not isinstance(expansion, Result):
         expansion = ParseExpr(expansion, sym, env)
+      DEBUG('symbol %s: %s', matched, expansion)
       ShiftVal(expansion)
     elif dict['string']:
       def eval_string(match):
@@ -1046,8 +1050,9 @@ if __name__ == '__main__':
     'withStr$': Function(['Str'], '$'),
     'L10': 'val(d10-1)',
     'SuccessMarker$$': Function(['TN', 'roll'], 'if(roll <= TN, "success {roll} vs {TN} doS:{(TN-roll)/10}", "failure {roll} vs {TN} doF:{(roll-TN)/10}")'),
-    'Difficulty': 10,
+    'Difficulty': 0,
     'sBasic$': Function(['Stat'], 'with(Difficulty=Difficulty+Stat/2,$)'), 
+    'dbonus$': Function(['n'], 'with(Difficulty=Difficulty+n, $)'),
   }
 
   sym_tests = [
@@ -1168,7 +1173,8 @@ if __name__ == '__main__':
     ('cond(1==0, "zero", 1==1, "one", 1==2, "two")', '"one"'),
     ('cond(3==0, "zero", 3==1, "one", 3==2, "two")', r'/^=$/'),
     ('cond(3==0, "zero", 3==1, "one", 3==2, "two", "other")', '"other"'),
-    ('conflicttest(3)', 'builtin'),
+    #('conflicttest(3)', 'builtin'),
+    ('conflicttest(3)', 'my value'),
     ('MeleeBonus', 7),
     ('withEnhFour MeleeBonus', 9),
     ('withEnhUnicode MeleeBonus', 9),
@@ -1193,14 +1199,18 @@ if __name__ == '__main__':
     ('if((1==2), 2, 3)', 3),
     ('if(2+(1==1), 2, 3)', 2), # boolean treated as numeric, not sure if this is expected
     ('', r'/^=$/'),
-    ('sBasic10 Difficulty', 15),
-    ('sBasic(10) Difficulty', 15),
+    ('sBasic10 Difficulty', 5),
+    ('sBasic(10) Difficulty', 5),
+    ('dbonus10 Difficulty', 10),
+    ('dbonus(10) Difficulty', 10),
+    ('dbonus10 sBasic8 Difficulty', 14),
+    ('dbonus(10) sBasic(8) Difficulty', 14),
 
     # Expected errors
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
     ('50x(50d6)', 'ParseError'),
-    ('Enh xyz', 'not a function'),
+    ('Enh xyz', 'missing operator'),
     ('if(1==2, 3, mul(2,3)', '/ParseError.*Missing closing parenthesis/'),
   ]
 
