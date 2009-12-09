@@ -50,6 +50,11 @@ EXPR_RE = re.compile(r'''
 def OnRobotAdded(properties, context):
   """Invoked when the robot has been added."""
   root_wavelet = context.GetRootWavelet()
+  if not root_wavelet:
+    logging.warning("can't create welcome blip, no root_wavelet")
+    logging.info('properties: %s', repr(properties))
+    logging.info('context: %s', repr(context))
+    return
   blip = root_wavelet.CreateBlip()
   doc = blip.GetDocument()
   SetTextWithAttributes(doc, 0, 0, [
