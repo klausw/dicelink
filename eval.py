@@ -661,7 +661,7 @@ def eval_with(sym, env, bindings, expr):
   sym_save = {}
   for key, value in bindings.iteritems():
     old = sym.get(key)
-    if old:
+    if old is not None:
       sym_save[key] = old
     sym[key] = value
   
