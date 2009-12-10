@@ -897,6 +897,7 @@ def ParseExpr(expr, sym, parent_env):
 	# No spaces allowed in magic symbols, end match at space if present
 	if ' ' in matched:
 	  sidx = matched.index(' ')
+	  orig_matched = matched
 	  matched = matched[:sidx]
 	  match_end = start + len(matched) + 1
 	
@@ -923,7 +924,7 @@ def ParseExpr(expr, sym, parent_env):
 	  #logging.debug('maybe-fn: fname="%s" args=%s', fname, repr(args))
 	  func = LookupSym(fname, sym)
 	  if func is None:
-	    raise ParseError('Symbol "%s" not found' % matched)
+	    raise ParseError('Symbol "%s" or "%s" not found' % (orig_matched, matched))
 	  
 	  if not isinstance(func, Function):
 	    raise ParseError('Symbol "%s" is not a function, missing operator before "%s" in "%s"?' % (matched, expr[match_end:], expr))
@@ -1212,6 +1213,7 @@ if __name__ == '__main__':
     ('50x(50d6)', 'ParseError'),
     ('Enh xyz', 'missing operator'),
     ('if(1==2, 3, mul(2,3)', '/ParseError.*Missing closing parenthesis/'),
+    ('Nonexistent Thing', '/ParseError.*Nonexistent Thing/'),
   ]
 
   # FIXME: put into proper test
