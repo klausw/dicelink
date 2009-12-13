@@ -179,7 +179,7 @@ class Result(object):
   def __str__(self):
     return self.detail() + '=' + self.publicval()
   def __repr__(self):
-    return 'Result(value=%s, flags=%s, constant_sum=%s, detail=%s, is_constant=%s, is_numeric=%s)' % (self._value, repr(self.flags), self.constant_sum, repr(self._detail), self.is_constant, self.is_numeric())
+    return '%s(value=%s, flags=%s, constant_sum=%s, detail=%s, is_constant=%s, is_numeric=%s)' % (self.__class__.__name__, self._value, repr(self.flags), self.constant_sum, repr(self._detail), self.is_constant, self.is_numeric())
 
 class ResultList(Result):
   def __init__(self, items):
@@ -208,6 +208,8 @@ class ResultDice(ResultList):
     ResultList.__init__(self, items)
   def show_as_list(self):
     return False
+  def detail_paren(self):
+    return self.detail()
   def detail(self):
     return Result.detail(self, '(%s)' % self._delim.join([x.detailvalue() for x in self._items]))
 
@@ -760,35 +762,54 @@ def ParseExpr(expr, sym, parent_env):
     env['stats'] = {'rolls': 0, 'objects': 0, 'level': 1}
     env['warnings'] = []
 
+  def AddOperator(op):
+    DEBUG('got operator %s', op)
+    if ops and OP_PRECEDENCE.get(ops[-1], 0) >= OP_PRECEDENCE.get(op, 0):
+      Reduce(result.pop(), ops.pop())
+    ops.append(op)
+
   def ShiftVal(new_result):
-    #logging.debug('ShiftVal: %s, sign=%s', repr(new_result), operator)
+    DEBUG('ShiftVal: %s', repr(new_result))
     result.append(new_result)
 
   def Reduce(rhs, op):
     # must not modify constants such as RESULT_NIL
     lhs = copy.deepcopy(result.pop())
+    need_parens = False
+    lhs_detailparen = lhs.detail_paren()
+    rhs_detailparen = rhs.detail_paren()
     if lhs.is_list:
       # flatten into scalar
       lhs = lhs.to_scalar()
     if rhs.is_list:
       rhs = rhs.to_scalar()
-    DEBUG('Reduce, op=%s, lhs=%s, rhs=%s', op, lhs, rhs)
+    DEBUG('Reduce, op=%s, lhs=%s, rhs=%s', op, repr(lhs), repr(rhs))
 
     lval = lhs._value
     rval = rhs.value()
     is_relop = False
+    need_detail = (not rhs.is_constant)
     if op == '+':
       lval += rval
       lhs.constant_sum += rhs.constant_sum
+      if need_detail and not lhs._detail:
+	lhs._detail = rhs._detail
+	need_detail = False
     elif op == '-':
       lval -= rval
       lhs.constant_sum -= rhs.constant_sum
     elif op == '*':
       lval *= rval
-      lhs.constant_sum *= rhs.constant_sum
+      lhs._detail = lhs.detail()
+      lhs.constant_sum = 0
+      need_detail = True
+      need_parens = True
     elif op == '/':
       lval /= rval
-      lhs.constant_sum /= rhs.constant_sum
+      lhs._detail = lhs.detail()
+      lhs.constant_sum = 0
+      need_detail = True
+      need_parens = True
     elif op in ('==', '!=', '<', '<=', '>', '>='):
       is_relop = True
       if op == '==':
@@ -809,12 +830,11 @@ def ParseExpr(expr, sym, parent_env):
     lhs._value = lval
     if rhs.is_numeric() and not is_relop:
       lhs._is_numeric = True
-    new_detail = rhs._detail
-    if new_detail and not rhs.is_constant:
-      if op == '+' and not lhs._detail:
-	lhs._detail = new_detail
-      else:
-	lhs._detail = op.join([lhs._detail, new_detail])
+    if need_detail:
+      if not need_parens:
+	lhs_detailparen = lhs._detail
+	rhs_detailparen = rhs._detail
+      lhs._detail = op.join([lhs_detailparen, rhs_detailparen])
     if not rhs.is_constant:
       lhs.is_constant = False
     lhs.flags.update(rhs.flags)
@@ -845,19 +865,20 @@ def ParseExpr(expr, sym, parent_env):
     DEBUG('expr %s{}%s', expr[:start], expr[start:])
 
     # Optional operator
+    maybe_plus = False
     mop = OP_RE.match(expr[start:])
     if mop:
       op = mop.group(1)
       start += mop.end()
       if op:
-	DEBUG('got operator %s', mop.group(1))
-	if ops and OP_PRECEDENCE.get(ops[-1], 0) >= OP_PRECEDENCE.get(op, 0):
-	  Reduce(result.pop(), ops.pop())
-	ops.append(mop.group(1))
+	AddOperator(mop.group(1))
 
 	# If first item is negative, need to subtract it from zero (NIL will do)
 	if mop.group(1) == '-' and not result:
 	  ShiftVal(RESULT_NIL)
+      elif result:
+	#treat "X Y" as "X + Y"?
+	maybe_plus = True
 
     m = OBJECT_RE.match(expr[start:])
     if not m:
@@ -867,6 +888,8 @@ def ParseExpr(expr, sym, parent_env):
 	raise ParseError("Unsupported syntax '%s' in '%s'." % (expr[start:], expr))
       else:
 	raise ParseError("Unsupported syntax '%s'." % expr)
+    if maybe_plus:
+      AddOperator('+')
     DEBUG('dict: %s', ', '.join([k for k, v in m.groupdict().iteritems() if v]))
     matched = m.group(0)
     match_end = m.end()
@@ -890,6 +913,7 @@ def ParseExpr(expr, sym, parent_env):
       match_end = m.start('parexpr') + len(pexpr) + 1
       ShiftVal(ParseExpr(pexpr, sym, env))
     elif dict['symbol']:
+      orig_matched = matched
       expansion = LookupSym(matched, sym)
       if expansion is None:
 	# Not a normal symbol lookup, look for special symbols
@@ -897,7 +921,6 @@ def ParseExpr(expr, sym, parent_env):
 	# No spaces allowed in magic symbols, end match at space if present
 	if ' ' in matched:
 	  sidx = matched.index(' ')
-	  orig_matched = matched
 	  matched = matched[:sidx]
 	  match_end = start + len(matched) + 1
 	
@@ -1154,6 +1177,8 @@ if __name__ == '__main__':
     ('with(a=L10, list(a, a, a, a, a, a, a, a))', '(4, 4, 4, 4, 4, 4, 4, 4)=32'),
     ('with(a==L10, list(a, a, a, a, a, a, a, a))', '(4, 7, 9, 7, 4, 9, 3, 7)=50'),
     ('SuccessMarker(50, d100)', '="failure 66 vs 50 doF:1"'),
+    ('6d6*3 "cut"', '6d6(5,6,2,4,3,5)*3=75'),
+    ('d6+2+(d4+1)*2+4', 'd6(6)+(d4(3)+1)*2+6=20'),
 
     # everything after this doesn't roll dice, order doesn't matter.
     ('Hometown', '="New York"'),
@@ -1206,6 +1231,8 @@ if __name__ == '__main__':
     ('dbonus(10) Difficulty', 10),
     ('dbonus10 sBasic8 Difficulty', 14),
     ('dbonus(10) sBasic(8) Difficulty', 14),
+    ('1 2 3*4 5 6', 26),
+    ('3*4 "flag"', '=12:"flag"'),
 
     # Expected errors
     ('10d6b7', 'ParseError'),
