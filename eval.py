@@ -495,8 +495,12 @@ def fn_reroll_if(sym, env, filter, fexpr):
   pred = predicate(sym, env, filter)
   return ParseExpr(fexpr, sym, DynEnv(env, 'reroll_if', pred))
 
-def fn_count(sym, env, filter, fexpr):
-  pred = predicate(sym, env, filter)
+def fn_count(sym, env, filter, fexpr=None):
+  if fexpr is None:
+    pred = lambda x: True
+    fexpr = filter
+  else:
+    pred = predicate(sym, env, filter)
   val = ParseExpr(fexpr, sym, env)
   if not val.is_list:
     raise ParseError('cannot count non-list "%s"' % fexpr)
@@ -1194,7 +1198,9 @@ if __name__ == '__main__':
     ('with(x="a" "b", y="a:b", if(x==y, 1, 2))', 2),
     ('with(x=1, y=2, with(x=y, y=x, "x is {x}, y is {y}"))', 'x is 2, y is 1'),
     ('len(list(1,2,3,4))', 4),
-    ('len(pick(>=3, list(1,2,3,4)))', 2),
+
+    ('len(pick(>=3, list(1,2,3,4)))', r'/^=2$/'),
+    ('count(pick(>=3, list(1,2,3,4)))', '(/*1*/, /*2*/, 3, 4)=2'),
     ('nth(3, list(10,11,12,13))', 13),
     ('cond(1==0, "zero", 1==1, "one", 1==2, "two")', '"one"'),
     ('cond(3==0, "zero", 3==1, "one", 3==2, "two")', r'/^=$/'),
