@@ -94,7 +94,7 @@ OP_RE = re.compile(r'''
   | ==
   | \*
   | \/
-  #FIXME#| , 
+  | , 
   )? \s*
 ''', re.X)
 
@@ -133,6 +133,7 @@ class Result(object):
     self._is_numeric = is_numeric
     self.is_constant = is_constant
     self.is_list = False
+    self.is_multivalue = False
     self.stats = None
     if is_constant:
       self.constant_sum = value
@@ -203,8 +204,13 @@ class ResultList(Result):
   def detail(self):
     return Result.detail(self, '(%s)' % self._delim.join([x.detailvalue() for x in self._items]))
 
+class ResultMultiValue(ResultList):
+  def __init__(self, items):
+    ResultList.__init__(self, items)
+    self.is_multivalue = True
+
 class ResultDice(ResultList):
-  def __init(self, items):
+  def __init__(self, items):
     ResultList.__init__(self, items)
   def show_as_list(self):
     return False
@@ -322,7 +328,22 @@ def fn_repeat(sym, env, num, fexpr):
     raise ParseError("repeat: repeat count must be >0")
   out = []
   for i in xrange(ntimes):
-    out.append(ParseExpr(fexpr, sym, env))
+    new_env = {
+      '_': Result(0, '', {'#'+str(i+1): True}),
+      '_i': i }
+    out.append(eval_with(sym, env, new_env, fexpr))
+  return ResultList(out)
+
+def fn_map(sym, env, list, fexpr):
+  all = ParseExpr(list, sym, env)
+  if not all.is_list:
+    raise ParseError("map: first argument must be a list")
+  out = []
+  for i, item in enumerate(all._items):
+    new_env = {
+      '_': item,
+      '_i': i }
+    out.append(eval_with(sym, env, new_env, fexpr))
   return ResultList(out)
 
 def fn_max(sym, env, fexpr):
@@ -423,7 +444,8 @@ def fn_len(sym, env, fexpr):
       ret += 1
   return Result(ret, '', {})
 
-def filter_list(all, pred):
+def filter_list(list, pred):
+  all = copy.deepcopy(list)
   for i, old in enumerate(all._items):
     if pred(i, old):
       continue
@@ -617,6 +639,14 @@ def fn_range(sym, env, e1, e2=None, e3=None):
   values = [Result(x, '', {}, is_constant=True) for x in rg]
   return ResultList(values)
 
+def fn_flag(sym, env, expr, name):
+  val = ParseExpr(expr, sym, env)
+  name = name.strip().replace('"', '')
+  if name in val.flags or '"' + name + '"' in val.flags:
+    return RESULT_TRUE
+  else:
+    return RESULT_FALSE
+
 def fn_conflicttest(sym, env, expr):
   return Result(42, 'builtin', {})
 
@@ -652,8 +682,10 @@ FUNCTIONS = {
   'reroll_if': fn_reroll_if,
   'list': fn_list,
   'nth': fn_nth,
+  'map': fn_map, # binds _
   #'range': fn_range, # needs sanity check for ranges!
   'sval': fn_sval,
+  'flag': fn_flag,
   ### new, document!
   # func $ args
 
@@ -779,6 +811,15 @@ def ParseExpr(expr, sym, parent_env):
   def Reduce(rhs, op):
     # must not modify constants such as RESULT_NIL
     lhs = copy.deepcopy(result.pop())
+
+    if op == ',':
+      if lhs.is_multivalue:
+	lhs._items.append(copy.deepcopy(rhs))
+      else:
+	lhs = ResultMultiValue([lhs, copy.deepcopy(rhs)])
+      result.append(lhs)
+      return
+
     need_parens = False
     lhs_detailparen = lhs.detail_paren()
     rhs_detailparen = rhs.detail_paren()
@@ -831,6 +872,7 @@ def ParseExpr(expr, sym, parent_env):
 
       lhs.constant_sum = 0
       lhs._is_numeric = False
+
     lhs._value = lval
     if rhs.is_numeric() and not is_relop:
       lhs._is_numeric = True
@@ -951,7 +993,10 @@ def ParseExpr(expr, sym, parent_env):
 	  #logging.debug('maybe-fn: fname="%s" args=%s', fname, repr(args))
 	  func = LookupSym(fname, sym)
 	  if func is None:
-	    raise ParseError('Symbol "%s" or "%s" not found' % (orig_matched, matched))
+	    if orig_matched == matched:
+	      raise ParseError('Symbol "%s" not found' % matched)
+	    else:
+	      raise ParseError('Symbol "%s" or "%s" not found' % (orig_matched, matched))
 	  
 	  if not isinstance(func, Function):
 	    raise ParseError('Symbol "%s" is not a function, missing operator before "%s" in "%s"?' % (matched, expr[match_end:], expr))
@@ -1198,9 +1243,11 @@ if __name__ == '__main__':
     ('with(x="a" "b", y="a:b", if(x==y, 1, 2))', 2),
     ('with(x=1, y=2, with(x=y, y=x, "x is {x}, y is {y}"))', 'x is 2, y is 1'),
     ('len(list(1,2,3,4))', 4),
+    ('1,2,3', '(1, 2, 3)=6'),
 
     ('len(pick(>=3, list(1,2,3,4)))', r'/^=2$/'),
     ('count(pick(>=3, list(1,2,3,4)))', '(/*1*/, /*2*/, 3, 4)=2'),
+    ('with(l=list(1,2,3), count(pick(>=3, l)) + len(l))', 4),
     ('nth(3, list(10,11,12,13))', 13),
     ('cond(1==0, "zero", 1==1, "one", 1==2, "two")', '"one"'),
     ('cond(3==0, "zero", 3==1, "one", 3==2, "two")', r'/^=$/'),
@@ -1239,6 +1286,9 @@ if __name__ == '__main__':
     ('dbonus(10) sBasic(8) Difficulty', 14),
     ('1 2 3*4 5 6', 26),
     ('3*4 "flag"', '=12:"flag"'),
+    ('repeat(4, _ + _i*_i)', '(0:#1, 1:#2, 4:#3, 9:#4)=14'),
+    ('map(("a", "b", 5"c"), _+_i)', '(0:"a", 1:"b", 7:"c")=8'),
+    ('map(("a", "b", "c", "b"), _i*cond(flag(_, "b"), 10))', 40), 
 
     # Expected errors
     ('10d6b7', 'ParseError'),

@@ -404,6 +404,11 @@ if __name__ == '__main__':
     '[TrailingSpace: Skill]',
 
     '[: 3x d20]',
+
+    '[::d6, d4, 13]',
+    '[repeat(4, d20+2+_)]',
+    '[5x d20+3+_]',
+    '[map(("a", "b", "c"), d20+4+_)]',
   ]
   
   defaultchar = ['Test']
