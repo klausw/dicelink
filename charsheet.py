@@ -16,8 +16,10 @@ ITEMS_RE=re.compile(ur'''
     [(]?[_a-z\u0080-\uffff][\w\u0080-\uffff' (),]*
   ) : \s*
   (?P<exp>
-    [^;\n]*
+    [^;\n]*?
   )
+  \s*
+  (?: [;\n] | $ )
 ''', re.X | re.I)
 
 NUMBER_RE=re.compile(r'^\d+$')
@@ -141,9 +143,21 @@ class CharSheet(object):
 def isCharSheet(txt):
   return 'Name:' in txt
 
-COMMENT_RE = re.compile(r'#.*$', re.M)
+COMMENT_RE = re.compile(r'^(.*?)(#.*)$', re.M)
+COMMENT_QUOTE_RE = re.compile(r'^((?:[^"#]*(?:"[^"]*")?)*)(#.*)$', re.M)
+def replaceCommentSimple(str):
+  if str.group(2) is None:
+    return str.group(1)
+  else:
+    return str.group(1) + ' ' * len(str.group(2))
+
 def replaceComment(str):
-  return ' ' * len(str.group(0))
+  if '"' in str.group(1):
+    # complicated case - might be a # inside "" string
+    return COMMENT_QUOTE_RE.sub(replaceCommentSimple, str.group(0))
+    
+  else:
+    return replaceCommentSimple(str)
 
 def itemsFromText(orig_txt):
   if not isCharSheet(orig_txt):
@@ -288,3 +302,20 @@ if __name__ == '__main__':
 
   print GetChar(storage, 'Flint')
   print GetChar(storage, 'Orc A')
+
+  CharSheet('''Name: Comments
+  # comment
+  # "comment" # foo
+  a: 1 # +10
+  b: 1 + "#" + 1
+  c: 1 + "#" + "#" + 1
+  d: 1 + "#" + 1 # + 10
+  e: 1 + "#" + 1 + "#2" # + 10
+  f: 1 + "#" + 1 + "#2" # + 10 # + 20
+  g: 1 + "#" + 1 + "#2" # "#
+  h: 1 + "#" + 1 + "#2" # ""#
+  ''').save(storage)
+  print GetChar(storage, 'Comments')
+  for c in ('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'):
+    print GetChar(storage, 'Comments').dict.get(c).__repr__()
+
