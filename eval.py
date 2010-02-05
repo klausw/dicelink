@@ -334,12 +334,25 @@ def fn_repeat(sym, env, num, fexpr):
     out.append(eval_with(sym, env, new_env, fexpr))
   return ResultList(out)
 
-def fn_map(sym, env, list, fexpr):
-  all = ParseExpr(list, sym, env)
-  if not all.is_list:
-    raise ParseError("map: first argument must be a list")
+def fn_map(sym, env, fexpr, *list):
+  if len(list) == 0:
+    args, unused_rest = first_paren_expr(fexpr)
+    if len(args) <= 2:
+      raise ParseError("map: need a list or multiple arguments")
+    fexpr = args[0]
+    list = args[1:]
+  if len(list) == 1:
+    val = ParseExpr(list[0], sym, env)
+    if val.is_list:
+      all = val._items
+    else:
+      all = [val]
+  else:
+    all = [ParseExpr(x, sym, env) for x in list]
+  if not '_' in fexpr:
+    fexpr = '(%s)+_' % fexpr
   out = []
-  for i, item in enumerate(all._items):
+  for i, item in enumerate(all):
     new_env = {
       '_': item,
       '_i': i }
@@ -656,7 +669,7 @@ FUNCTIONS = {
   'mul': fn_mul,
   'div': fn_div,
   'bonus': fn_bonus,
-  'repeat': fn_repeat,
+  'repeat': fn_repeat, # binds _ and _i
   'd': fn_d,
   'explode': fn_explode,
   'count': fn_count,
@@ -682,7 +695,7 @@ FUNCTIONS = {
   'reroll_if': fn_reroll_if,
   'list': fn_list,
   'nth': fn_nth,
-  'map': fn_map, # binds _
+  'map': fn_map, # binds _ and _i
   #'range': fn_range, # needs sanity check for ranges!
   'sval': fn_sval,
   'flag': fn_flag,
@@ -1026,6 +1039,7 @@ def ParseExpr(expr, sym, parent_env):
     elif dict['fpipe']:
       fname = dict['fpipe']
       fexpr = dict['fpinput']
+      DEBUG('fpipe name=%s, input=%s', repr(fname), repr(fexpr))
       ret, unused_offset = eval_fname(sym, env, fname, [fexpr], '')
       if ret:
 	ShiftVal(ret)
@@ -1131,6 +1145,7 @@ if __name__ == '__main__':
     'Difficulty': 0,
     'sBasic$': Function(['Stat'], 'with(Difficulty=Difficulty+Stat/2,$)'), 
     'dbonus$': Function(['n'], 'with(Difficulty=Difficulty+n, $)'),
+    'blast': Function([], 'map($)'),
   }
 
   sym_tests = [
@@ -1233,6 +1248,7 @@ if __name__ == '__main__':
     ('SuccessMarker(50, d100)', '="failure 66 vs 50 doF:1"'),
     ('6d6*3 "cut"', '6d6(5,6,2,4,3,5)*3=75'),
     ('d6+2+(d4+1)*2+4', 'd6(6)+(d4(3)+1)*2+6=20'),
+    ('blast d20, "orc 1", "orc 2" + 2, "orc 3"', '(d20(1)=1:"orc 1", d20(10)+2=12:"orc 2", d20(15)=15:"orc 3")'),
 
     # everything after this doesn't roll dice, order doesn't matter.
     ('Hometown', '="New York"'),
@@ -1292,16 +1308,22 @@ if __name__ == '__main__':
     ('1 2 3*4 5 6', 26),
     ('3*4 "flag"', '=12:"flag"'),
     ('repeat(4, _ + _i*_i)', '(0:#1, 1:#2, 4:#3, 9:#4)=14'),
-    ('map(("a", "b", 5"c"), _+_i)', '(0:"a", 1:"b", 7:"c")=8'),
-    ('map(("a", "b", "c", "b"), _i*cond(flag(_, "b"), 10))', 40), 
+    ('map(_+_i, ("a", "b", 5"c"))', '(0:"a", 1:"b", 7:"c")=8'),
+    ('map(_+_i, "a", "b", 5"c")', '(0:"a", 1:"b", 7:"c")=8'),
+    ('map(42, "a", "b", 5"c")', '(42:"a", 42:"b", 47:"c")'),
+    ('map(_i*cond(flag(_, "b"), 10), ("a", "b", "c", "b"))', 40), 
+    ('map $ _*2, 10, 11, 12', '(10*2=20, 11*2=22, 12*2=24)=66'),
+
+    ('len $ 3d6, 1, 2, 3', 4),
 
     # Expected errors
     ('10d6b7', 'ParseError'),
     ('Recursive + 2', 'ParseError'),
     ('50x(50d6)', 'ParseError'),
     ('Enh xyz', 'missing operator'),
-    ('if(1==2, 3, mul(2,3)', '/ParseError.*Missing closing parenthesis/'),
-    ('Nonexistent Thing', '/ParseError.*Nonexistent Thing/'),
+    ('if(1==2, 3, mul(2,3)', r'/ParseError.*Missing closing parenthesis/'),
+    ('Nonexistent Thing', r'/ParseError.*Nonexistent Thing/'),
+    ('with(x=2, x) + x', r'/ParseError: Symbol "x" not found/'),
   ]
 
   # FIXME: put into proper test
