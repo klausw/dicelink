@@ -144,7 +144,7 @@ def isCharSheet(txt):
   return 'Name:' in txt
 
 COMMENT_RE = re.compile(r'^(.*?)(#.*)$', re.M)
-COMMENT_QUOTE_RE = re.compile(r'^((?:[^"#]*(?:"[^"]*")?)*)(#.*)$', re.M)
+REMOVE_QUOTE_RE = re.compile(r'"[^"]*"')
 def replaceCommentSimple(str):
   if str.group(2) is None:
     return str.group(1)
@@ -154,7 +154,11 @@ def replaceCommentSimple(str):
 def replaceComment(str):
   if '"' in str.group(1):
     # complicated case - might be a # inside "" string
-    return COMMENT_QUOTE_RE.sub(replaceCommentSimple, str.group(0))
+    txt = str.group(0)
+    copy = REMOVE_QUOTE_RE.sub(lambda m: ' ' * len(m.group(0)), txt)
+    hashpos = copy.find('#')
+    if hashpos >= 0:
+      return txt[:hashpos] + ' ' * len(txt[hashpos:])
     
   else:
     return replaceCommentSimple(str)
@@ -314,8 +318,9 @@ if __name__ == '__main__':
   f: 1 + "#" + 1 + "#2" # + 10 # + 20
   g: 1 + "#" + 1 + "#2" # "#
   h: 1 + "#" + 1 + "#2" # ""#
+  MultiAttack(num): repeat(num, with(multiAttackPenalty=num+_i+"#{_i}of{num}", $))
   ''').save(storage)
   print GetChar(storage, 'Comments')
-  for c in ('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'):
+  for c in ('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'MultiAttack$'):
     print GetChar(storage, 'Comments').dict.get(c).__repr__()
 
