@@ -330,7 +330,8 @@ def fn_repeat(sym, env, num, fexpr):
   for i in xrange(ntimes):
     new_env = {
       '_': Result(0, '', {'#'+str(i+1): True}),
-      '_i': i }
+      '_i': i,
+      '_n': ntimes}
     out.append(eval_with(sym, env, new_env, fexpr))
   return ResultList(out)
 
@@ -355,7 +356,8 @@ def fn_map(sym, env, fexpr, *list):
   for i, item in enumerate(all):
     new_env = {
       '_': item,
-      '_i': i }
+      '_i': i,
+      '_n': len(all)}
     out.append(eval_with(sym, env, new_env, fexpr))
   return ResultList(out)
 
@@ -1314,6 +1316,7 @@ if __name__ == '__main__':
     ('map(42, "a", "b", 5"c")', '(42:"a", 42:"b", 47:"c")'),
     ('map(_i*cond(flag(_, "b"), 10), ("a", "b", "c", "b"))', 40), 
     ('map $ _*2, 10, 11, 12', '(20, 22, 24)=66'),
+    ('with(pool=15, attacks=3, repeat(attacks, d(pool - _n - _i, 1)))', r'/12d1.*11d1.*10d1.*=33/'),
     ('len $ 3d6, 1, 2, 3', 4),
     ('d1 + 2*2 + 1', '+5=6'),
     ('d1 + 2*d1 + 1', '+2*d1(1)+1=4'),
