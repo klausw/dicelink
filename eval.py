@@ -861,18 +861,20 @@ def ParseExpr(expr, sym, parent_env):
     elif op == '-':
       lval -= rval
       lhs.constant_sum -= rhs.constant_sum
-    elif op == '*':
-      lval *= rval
+    elif op in ('*', '/'):
+      if op == '*':
+	lval *= rval
+      elif op == '/':
+	lval /= rval
+      else:
+	raise ParseError('bad op: "%s"', op)
       lhs._detail = lhs.detail()
-      lhs.constant_sum = 0
-      need_detail = True
-      need_parens = True
-    elif op == '/':
-      lval /= rval
-      lhs._detail = lhs.detail()
-      lhs.constant_sum = 0
-      need_detail = True
-      need_parens = True
+      if lhs.is_constant and rhs.is_constant:
+	lhs.constant_sum = lval
+      else:
+	lhs.constant_sum = 0
+	need_detail = True
+	need_parens = True
     elif op in ('==', '!=', '<', '<=', '>', '>='):
       is_relop = True
       if op == '==':
@@ -1312,9 +1314,11 @@ if __name__ == '__main__':
     ('map(_+_i, "a", "b", 5"c")', '(0:"a", 1:"b", 7:"c")=8'),
     ('map(42, "a", "b", 5"c")', '(42:"a", 42:"b", 47:"c")'),
     ('map(_i*cond(flag(_, "b"), 10), ("a", "b", "c", "b"))', 40), 
-    ('map $ _*2, 10, 11, 12', '(10*2=20, 11*2=22, 12*2=24)=66'),
-
+    ('map $ _*2, 10, 11, 12', '(20, 22, 24)=66'),
     ('len $ 3d6, 1, 2, 3', 4),
+    ('d1 + 2*2 + 1', '+5=6'),
+    ('d1 + 2*d1 + 1', '+2*d1(1)+1=4'),
+    ('d1 + d1*2 + 1', '+d1(1)*2+1=4'),
 
     # Expected errors
     ('10d6b7', 'ParseError'),
