@@ -868,7 +868,6 @@ def ParseExpr(expr, sym, parent_env):
 	lval /= rval
       else:
 	raise ParseError('bad op: "%s"', op)
-      lhs._detail = lhs.detail()
       if lhs.is_constant and rhs.is_constant:
 	lhs.constant_sum = lval
       else:
