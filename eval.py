@@ -697,14 +697,19 @@ DOLLAR_RE = re.compile(r'\$')
 
 def eval_with(sym, env, bindings, expr):
   sym_save = {}
+  sym_remove = {}
   for key, value in bindings.iteritems():
     old = sym.get(key)
-    if old is not None:
+    if old is None:
+      sym_remove[key] = True
+    else:
       sym_save[key] = old
     sym[key] = value
   
   ret = ParseExpr(expr, sym, env)
   sym.update(sym_save)
+  for key in sym_remove:
+    del sym[key]
   return ret
 
 class Function(object):
