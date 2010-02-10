@@ -392,6 +392,9 @@ if __name__ == '__main__':
 
     '[mw2::withMaul Power One Attack]',
     '[Power Two Attack]',
+    '[p1, p1d]',
+    '[withMaul (Power One Attack, Power One Damage)]',
+    '[withMaul (p1, p1d)]',
     '[WeaponDamage]',
     '[WeaponDamage2]',
     '[withMaul critical Power One Damage]',

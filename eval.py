@@ -180,7 +180,18 @@ class Result(object):
   def __str__(self):
     return self.detail() + '=' + self.publicval()
   def __repr__(self):
-    return '%s(value=%s, flags=%s, constant_sum=%s, detail=%s, is_constant=%s, is_numeric=%s)' % (self.__class__.__name__, self._value, repr(self.flags), self.constant_sum, repr(self._detail), self.is_constant, self.is_numeric())
+    def notFalse(desc, x):
+      if x:
+	return ', ' + desc + repr(x)
+      else:
+	return ''
+
+    return '%s(%s%s%s%s%s%s)' % (self.__class__.__name__, self._value,
+      notFalse('flags=', self.flags.keys()),
+      notFalse('constant_sum=', self.constant_sum),
+      notFalse('detail=', self._detail),
+      {True: ", const", False: ""}[self.is_constant],
+      {True: ", num", False: ""}[self.is_numeric()])
 
 class ResultList(Result):
   def __init__(self, items):
@@ -203,6 +214,8 @@ class ResultList(Result):
     return True
   def detail(self):
     return Result.detail(self, '(%s)' % self._delim.join([x.detailvalue() for x in self._items]))
+  def __repr__(self):
+    return Result.__repr__(self) + ': ' + ', '.join([x.__repr__() for x in self._items])
 
 class ResultMultiValue(ResultList):
   def __init__(self, items):
@@ -600,6 +613,8 @@ def fn_with(sym, env, *args):
   new_env = {}
   for binding in bindings:
     m = BINDING_SPLIT_RE.match(binding)
+    if m is None:
+      raise ParseError('Binding term "%s" in "with(%s)" does not contain "="' % (binding.strip(), ', '.join([x.strip() for x in args])))
     lhs, op, rhs = m.groups()
     lhs = lhs.strip()
     rhs = rhs.strip()
@@ -997,10 +1012,7 @@ def ParseExpr(expr, sym, parent_env):
 	  dollar = expansion.find('$')
 	  if dollar < 0:
 	    raise ParseError('Symbol "%s" is not magic (no $ in expansion), missing operator before "%s" in "%s"?' % (matched, expr[match_end:], expr))
-	  marg = expr[match_end:]
-	  expansion = expansion[:dollar] + marg + expansion[dollar+1:]
-	  #logging.debug('magic expansion: %s', repr(expansion))
-	  match_end = len(expr)
+	  # actual magic happens below
 	else:
 	  # a(b)c(d)e style function called as a10c2e ?
 	  fname = ''
@@ -1030,6 +1042,13 @@ def ParseExpr(expr, sym, parent_env):
 	  else:
 	    expansion = func.eval(sym, env, args)
       if not isinstance(expansion, Result):
+	if expansion and isinstance(expansion, basestring): # FIXME, hack
+	  dollar = expansion.find('$')
+	  if dollar >= 0:
+	    # magic symbol
+	    marg = expr[match_end:]
+	    expansion = expansion[:dollar] + marg + expansion[dollar+1:]
+	    match_end = len(expr)
         expansion = ParseExpr(expansion, sym, env)
       DEBUG('symbol %s: %s', matched, expansion)
       ShiftVal(expansion)
@@ -1321,6 +1340,8 @@ if __name__ == '__main__':
     ('d1 + 2*2 + 1', '+5=6'),
     ('d1 + 2*d1 + 1', '+2*d1(1)+1=4'),
     ('d1 + d1*2 + 1', '+d1(1)*2+1=4'),
+    ('withEnh4 (Enh+1, Enh+2)', '(5, 6)=11'),
+    ('withEnhFour (Enh+1, Enh+2)', '(5, 6)=11'),
 
     # Expected errors
     ('10d6b7', 'ParseError'),
@@ -1330,6 +1351,7 @@ if __name__ == '__main__':
     ('if(1==2, 3, mul(2,3)', r'/ParseError.*Missing closing parenthesis/'),
     ('Nonexistent Thing', r'/ParseError.*Nonexistent Thing/'),
     ('with(x=2, x) + x', r'/ParseError: Symbol "x" not found/'),
+    ('with(x=2, x, y)', r'/ParseError: Binding term "x"/'),
   ]
 
   # FIXME: put into proper test
