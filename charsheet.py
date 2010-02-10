@@ -159,6 +159,8 @@ def replaceComment(str):
     hashpos = copy.find('#')
     if hashpos >= 0:
       return txt[:hashpos] + ' ' * len(txt[hashpos:])
+    else:
+      return txt
     
   else:
     return replaceCommentSimple(str)
@@ -324,3 +326,13 @@ if __name__ == '__main__':
   for c in ('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'MultiAttack$'):
     print GetChar(storage, 'Comments').dict.get(c).__repr__()
 
+  CharSheet('''Name: MultiAttackTest
+_template: "ExaltedTemplate"
+multiAttackPenalty: 0
+Attack: exaltedd(15 - multiAttackPenalty, 7)
+MultiAttack(num): repeat(num, with(multiAttackPenalty=num+_i+"#{_i}of{num}", $))
+t1: repeat(3, d1)
+tx(num): repeat(num, $)
+ty(num): repeat(num, with(test=2+"z", $)) 
+  ''').save(storage)
+  print GetChar(storage, 'MultiAttackTest')
