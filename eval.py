@@ -967,9 +967,9 @@ def ParseExpr(expr, sym, parent_env):
       if not expr[start:]:
 	break
       if start:
-	raise ParseError("Unsupported syntax '%s' in '%s'." % (expr[start:], expr))
+	raise ParseError("Unsupported syntax '%s' at end of '%s'" % (expr[start:], expr))
       else:
-	raise ParseError("Unsupported syntax '%s'." % expr)
+	raise ParseError("Unsupported syntax '%s'" % expr)
     if maybe_plus:
       AddOperator('+')
     DEBUG('dict: %s', ', '.join([k for k, v in m.groupdict().iteritems() if v]))

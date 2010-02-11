@@ -372,6 +372,7 @@ if __name__ == '__main__':
     "[Warrior: Double Strike] [Warrior: Warrior's Strike]",
     "ERROR: [BadCharacter: Attack]",
     "ERROR: [BadTemplate: Attack]",
+    "ERROR: [2 + 2.]",
     "ERROR: [:foo]",
     "ERROR: [!list]",
     "[!list Test]",
@@ -402,7 +403,7 @@ if __name__ == '__main__':
 
     u'[macrotest::Pow] [super Pow] [enh7 Pow] [add10 Pow] [super add10 Pow]',
     u'[天地:: 力] [力]',
-    u'[天地mistype: 力]',
+    u'ERROR: [天地mistype: 力]',
 
     '[TrailingSpace: Skill]',
 
