@@ -9,12 +9,12 @@ import roll
 ITEMS_RE=re.compile(ur'''
   \s*
   (?:
-    (?P<abbr> [\w\u0080-\uffff]+ (?:\(\))?)
+    (?P<abbr> [\w\u0080-\uffff]+ (?: \(\) )?)
     : \s*
   )?
   (?P<sym>
     [(]?[_a-z\u0080-\uffff][\w\u0080-\uffff' (),]*
-  ) : \s*
+  )? : \s*
   (?P<exp>
     [^;\n]*?
   )
@@ -71,7 +71,7 @@ class CharSheet(object):
     for start, end, abbr, key, value in itemsFromText(txt):
       if NUMBER_RE.match(value):
         value = int(value)
-      elif '(' in key:
+      if key is not None and '(' in key:
         fname = ''
 	args = []
 	fidx = 0
@@ -87,11 +87,15 @@ class CharSheet(object):
         key = fname
 	value = eval.Function(args, value)
 
-      self.keys.append(key)
-      self.span[key] = (start, end)
-      self.dict[key] = value
+      if key is not None:
+	self.keys.append(key)
+	self.span[key] = (start, end)
+	self.dict[key] = value
       if abbr:
-	self.shortcuts[abbr] = key
+	if key is None:
+	  self.shortcuts[abbr] = value
+	else:
+	  self.shortcuts[abbr] = key
     self.name = self.dict.get('Name', '')
 
   def save(self, accessor):

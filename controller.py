@@ -164,6 +164,10 @@ def get_expansions(expr, char, template):
       if expand:
 	expr = expr[:ex.start()] + expand + expr[ex.end():]
 	expansions.append((expand, ex.start(), ex.end()))
+    defaults = shortcuts.get('DEFAULTS')
+    if defaults is not None:
+      expr = defaults + ' ' + expr
+      
   return expr, reversed(expansions)
 
 def markup(txt):
@@ -252,6 +256,7 @@ if __name__ == '__main__':
     withStr(Strength): $
     withStrBonus(N): with(Strength=Strength+N, $)
     springy: with(JumpSkill=10, $)
+    j::Jump
   ''').save(storage)
 
   charsheet.CharSheet('''
@@ -280,9 +285,9 @@ if __name__ == '__main__':
   charsheet.CharSheet('''
     Name: mw2
     # Default weapon properties, set this for your favorite weapon
-    #name: "unarmed"; n_dice: 1; n_sides: 4; enh: 0; proficiency: 0; misc_hit: 0; misc_damage: 0; crit_sides: 6
-    name: "Longsword+2"; n_dice: 1; n_sides: 8; enh: 2; proficiency: 3; misc_hit: 1; misc_damage: 1; crit_sides: 6
+    name: "unarmed"; n_dice: 1; n_sides: 4; enh: 0; proficiency: 0; misc_hit: 0; misc_damage: 0; crit_sides: 6
     # Weapon-specific overrides
+    withSword: with(name="Longsword+2", n_dice=1, n_sides=8, enh=2, proficiency=3, misc_hit=1, misc_damage=1, crit_sides=6, $)
     withMaul: with(name="Maul+1", n_sides=6, n_dice=2, enh=1, proficiency=2, misc_damage=0, misc_hit=0, $)
     times_w: 1 # power specific dice multiplier
     WeaponHit: enh + proficiency + misc_hit + name
@@ -301,6 +306,7 @@ if __name__ == '__main__':
     p1d:Power One Damage: 2W + StrMod
     p2:Power Two Attack: DexAttack "vs Reflex"
     p2d:Power Two Damage: 1W + DexMod
+    DEFAULTS:: withSword
   ''').save(storage)
 
   charsheet.CharSheet('''
@@ -381,6 +387,7 @@ if __name__ == '__main__':
     '[Warrior:: withStr22 bonus(Jump)]',
     '[springy withStr22 bonus(Jump)]',
     '[springy withStrBonus4 bonus(Jump)]',
+    '[j]',
     '[::d6]',
     'NONAME: [d20]',
 
@@ -394,8 +401,9 @@ if __name__ == '__main__':
     '[mw2::withMaul Power One Attack]',
     '[Power Two Attack]',
     '[p1, p1d]',
-    '[withMaul (Power One Attack, Power One Damage)]',
-    '[withMaul (p1, p1d)]',
+    '[withMaul Power One Attack, Power One Damage]',
+    '[withMaul Power One Attack, (withSword Power One Damage), Power One Damage]',
+    '[withMaul p1, p1d]',
     '[WeaponDamage]',
     '[WeaponDamage2]',
     '[withMaul critical Power One Damage]',
