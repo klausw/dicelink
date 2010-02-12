@@ -1047,7 +1047,7 @@ def ParseExpr(expr, sym, parent_env):
 	  if dollar >= 0:
 	    # magic symbol
 	    marg = expr[match_end:]
-	    expansion = expansion[:dollar] + marg + expansion[dollar+1:]
+	    expansion = expansion[:dollar] + '(' + marg + ')' + expansion[dollar+1:]
 	    match_end = len(expr)
         expansion = ParseExpr(expansion, sym, env)
       DEBUG('symbol %s: %s', matched, expansion)
@@ -1299,6 +1299,7 @@ if __name__ == '__main__':
     ('conflicttest(3)', 'my value'),
     ('MeleeBonus', 7),
     ('withEnhFour MeleeBonus', 9),
+    ('withEnhFour MeleeBonus, MeleeBonus', '(9, 9)=18'),
     ('withEnhUnicode MeleeBonus', 9),
     ('withEnh8 MeleeBonus', 13),
     ('withEnh8 withStr20 MeleeBonus', 14),
