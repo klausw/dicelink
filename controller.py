@@ -376,11 +376,11 @@ if __name__ == '__main__':
     '[Params: Broadsword(5)] [Params: Broadsword4] [Params: Broadsword]',
     '[Params: attack(80)] [Params: attack] [Params: attackT90b2] [Params: attack70b7]',
     "[Warrior: Double Strike] [Warrior: Warrior's Strike]",
-    "ERROR: [BadCharacter: Attack]",
-    "ERROR: [BadTemplate: Attack]",
-    "ERROR: [2 + 2.]",
-    "ERROR: [:foo]",
-    "ERROR: [!list]",
+    "EXPECT_ERROR: [BadCharacter: Attack]",
+    "EXPECT_ERROR: [BadTemplate: Attack]",
+    "EXPECT_ERROR: [2 + 2.]",
+    "EXPECT_ERROR: [:foo]",
+    "EXPECT_ERROR: [!list]",
     "[!list Test]",
     "[! list Test ]",
 
@@ -411,7 +411,7 @@ if __name__ == '__main__':
 
     u'[macrotest::Pow] [super Pow] [enh7 Pow] [add10 Pow] [super add10 Pow]',
     u'[天地:: 力] [力]',
-    u'ERROR: [天地mistype: 力]',
+    u'EXPECT_ERROR: [天地mistype: 力]',
 
     '[TrailingSpace: Skill]',
 

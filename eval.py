@@ -107,13 +107,19 @@ OP_PRECEDENCE = {
   ',': -1,
 }
 
+class SymRef(object):
+  def __init__(self, target):
+    self.target = target
+
 def LookupSym(name, sym):
-  while True:
-    if name in sym:
-      return sym[name]
-      break
-    break
-  return None
+  ret = sym.get(name, None)
+  expansions = [name]
+  while isinstance(ret, SymRef):
+    expansions.append(ret.target)
+    if ret.target in expansions[:-1]:
+      raise ParseError('Recursive symbol expansion %s' % repr(expansions))
+    ret = sym.get(ret.target, None)
+  return ret
 
 class ParseError(Exception):
   def __init__(self, msg):
@@ -620,7 +626,7 @@ def fn_with(sym, env, *args):
     rhs = rhs.strip()
     if op == '==':
       # bind symbol synonym
-      rhs_val = sym.get(rhs)
+      rhs_val = SymRef(rhs)
       if not rhs_val:
 	raise ParseError('"%s" is not a symbol, did you mean = instead of == in "%s"?' % (rhs, binding))
     else:
@@ -1343,6 +1349,10 @@ if __name__ == '__main__':
     ('d1 + d1*2 + 1', '+d1(1)*2+1=4'),
     ('withEnh4 (Enh+1, Enh+2)', '(5, 6)=11'),
     ('withEnhFour (Enh+1, Enh+2)', '(5, 6)=11'),
+    ('withEnhFour Enh+1, Enh+2', '(5, 6)=11'),
+    ('with(X=Enh, withEnh(7) X)', 2),
+    ('with(X==Enh, withEnh(7) X)', 7),
+    ('with(X==Enh, withEnh(X) X)', 2),
 
     # Expected errors
     ('10d6b7', 'ParseError'),
@@ -1353,6 +1363,7 @@ if __name__ == '__main__':
     ('Nonexistent Thing', r'/ParseError.*Nonexistent Thing/'),
     ('with(x=2, x) + x', r'/ParseError: Symbol "x" not found/'),
     ('with(x=2, x, y)', r'/ParseError: Binding term "x"/'),
+    ('with(X==Enh, with(Enh==X, X))', r'/ParseError: Recursive/'),
   ]
 
   # FIXME: put into proper test
