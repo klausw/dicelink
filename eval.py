@@ -380,8 +380,27 @@ def fn_map(sym, env, fexpr, *list):
     out.append(eval_with(sym, env, new_env, fexpr))
   return ResultList(out)
 
-def fn_max(sym, env, fexpr):
-  return ParseExpr(fexpr, sym, DynEnv(env, 'max', True))
+def fn_max(sym, env, *args):
+  if len(args) == 1:
+    return ParseExpr(args[0], sym, DynEnv(env, 'max', True))
+  else:
+    max = None
+    for arg in args:
+      val = ParseExpr(arg, sym, env).value()
+      if max is None or val > max:
+	max = val
+    return Result(max, [], {})
+
+def fn_min(sym, env, *args):
+  if len(args) <= 1:
+    raise ParseError('min() needs at least two args.')
+  else:
+    min = None
+    for arg in args:
+      val = ParseExpr(arg, sym, env).value()
+      if min is None or val < min:
+	min = val
+    return Result(min, [], {})
 
 def fn_avg(sym, env, fexpr):
   return ParseExpr(fexpr, sym, DynEnv(env, 'avg', True))
@@ -688,6 +707,7 @@ def fn_conflicttest(sym, env, expr):
 
 FUNCTIONS = {
   'max': fn_max,
+  'min': fn_min,
   'avg': fn_avg,
   'mul': fn_mul,
   'div': fn_div,
