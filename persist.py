@@ -163,7 +163,7 @@ def SaveCharacter(name, owner, wave, wavelet, blip, text):
   # other wavelets) if saving in the toplevel wavelet, otherwise just affect the wavelet.
   # The goal is that the character you see is the character it'll use.
 
-  # Update current blip, or make a new one
+  # Update current blip's character, or make a new one
   char = Characters.all().filter('wave = ', wave).filter('wavelet =', wavelet).filter('blip =', blip).get()
   if not char:
     char = Characters()

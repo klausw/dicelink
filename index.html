@@ -1,6 +1,7 @@
 <html>
+  <head><title>{{ title }}</title></head>
   <body onload="document.roll.content.focus()">
-    {{ title }}
+    <h1>{{ title }}</h1>
     {% for msg in msgs %}
       {{ msg.date }}
       <b>{{ msg.author }}:</b>

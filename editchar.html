@@ -1,0 +1,15 @@
+<html>
+  <head><title>{{ title }}</title></head>
+  <body onload="document.charupdate.content.focus()">
+    <h1>{{ title }}</h1>
+
+    <form action="/charupdate" name="charupdate" method="post">
+      <textarea name="content" cols=80 rows=50>{{ content }}</textarea>
+
+      <input type="hidden" name="campaign" value="{{ campaign }}"><br>
+      <input type="submit" value="Save and return">
+    </form>
+    <a href="/static/help.html#charupdate" target="_blank">Help</a>
+
+  </body>
+</html>
