@@ -28,8 +28,13 @@ class GaeCharStore(charstore.CharStore):
       # Privacy/security check: permissions for other-Wave characters?
       perms = sheet.dict.get('_access')
       #logging.info('perms=%s, key=%s', repr(perms), repr(key))
-      if perms is None or (perms.lower() != 'public' and perms != key):
-	return None
+      if perms is None:
+	raise charstore.PermissionError('Template "%s" exists but is not public, add "_access: public" to the template blip to share it.' % name)
+      if perms.lower() != 'public':
+	if key is None:
+	  raise charstore.PermissionError('Template "%s" is password protected. Change "@%s" to "@%s=PASSWORD" in the _template line.' % (name, fromWave, fromWave))
+	if key != perms:
+	  raise charstore.PermissionError('Template "%s" is password protected, the supplied password is incorrect.' % name)
     return sheet
 
   def put(self, sheet):
@@ -87,3 +92,7 @@ class GaeCharStore(charstore.CharStore):
   def clear(self, name):
     msg = persist.ClearCharacterForOwner(name, self.modifier)
     return [([msg, ('style/color', '#777777')], msg)]
+
+  def waveid(self, unused_dummy):
+    msg = ' @%s ' % (self.waveId)
+    return [([msg], msg)]

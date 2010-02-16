@@ -1,3 +1,9 @@
+class PermissionError(Exception):
+  def __init__(self, msg):
+    self.msg = msg
+  def __str__(self):
+    return 'PermissionError: ' + self.msg
+
 class CharStore(object):
   def __init__(self):
     pass
@@ -19,6 +25,9 @@ class CharStore(object):
 
   def clear(self, name):
     return
+
+  def waveid(self, unused_dummy):
+    return None
 
 class InMemoryCharStore(CharStore):
   def __init__(self):

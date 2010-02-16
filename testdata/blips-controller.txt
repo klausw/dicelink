@@ -46,21 +46,23 @@ Axe: d12 + StrMod # Can refer to values from the template
 Warrior's Strike: d8+5
 Double Strike: Warrior's Strike + Warrior's Strike
 withStr(Strength): $
-withStrBonus(N): with(Strength=Strength+N, $)
+sb:withStrBonus(N): with(Strength=Strength+N, $)
 springy: with(JumpSkill=10, $)
 j::Jump
 
 --------------------------------------------------
 [Warrior:Axe]
-[ Warrior: Speed ]
+[ Warrior: Speed ] #% 6
 [Warrior: Jump]
-[Warrior: bonus(Jump)]
+[Warrior: bonus(Jump)] #% 4
 [D20Template: Speed]
-[D20Template: Jump]
+[D20Template: Jump] #% "UndefinedStrength"
 [Warrior: Double Strike] [Warrior: Warrior's Strike]
 [Warrior:: withStr22 bonus(Jump)]
 [springy withStr22 bonus(Jump)]
-[springy withStrBonus4 bonus(Jump)]
+[springy withStrBonus4 bonus(Jump)] #% 16
+[sb4 bonus(Jump)] #% 6
+[sb(-2) bonus(Jump)] #% 2
 [j]
 
 --------------------------------------------------
@@ -121,7 +123,7 @@ DEFAULTS:: withSword
 --------------------------------------------------
 [mw2::withMaul Power One Attack]
 [Power Two Attack]
-[p1, p1d]
+[p1, p1d] #% Power One Attack
 [withMaul Power One Attack, Power One Damage]
 [withMaul Power One Attack, (withSword Power One Damage), Power One Damage]
 [withMaul p1, p1d]

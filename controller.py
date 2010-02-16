@@ -5,6 +5,7 @@ import logging
 import re
 
 import charsheet
+import charstore
 import eval
 import roll
 
@@ -139,13 +140,19 @@ def do_special(storage, expr):
   cmd = m.group(1)
   arg = expr[m.end():].strip()
 
-  special_fn = {'list': storage.list, 'clear': storage.clear}.get(cmd)
+  special_fn = {
+    'list': storage.list,
+    'clear': storage.clear,
+    'waveid': storage.waveid,
+  }.get(cmd)
   if not special_fn:
     error('Unknown "[!" special command "%s"' % cmd)
     return out, logs
   logs.append('special: %s %s' % (expr, repr(arg)))
   # FIXME: special commands with prototype other than (charname)?
   # Commands taking a character arg 
+  if cmd == 'waveid':
+    arg = 'dummy'
   if not arg:
     error('Usage: "[!%s CharacterName]"' % cmd)
     return out, logs
@@ -182,7 +189,11 @@ def get_char_and_template(storage, charname):
       template_name = m.group(1)
       template_location = m.group(2)
       template_key = m.group(3)
-    template = storage.get(template_name, template_location, template_key)
+    error = None
+    try:
+      template = storage.get(template_name, template_location, template_key)
+    except charstore.PermissionError, e:
+      error = str(e) + ' '
     if template:
       logging.debug('Using template "%s" for "%s"' % (template.name, char.name))
       for k, v in template.dict.iteritems():
@@ -190,10 +201,14 @@ def get_char_and_template(storage, charname):
 	sym.setdefault(k, v)
       log.append('template "%s" (%d),' % (template_name, len(template.dict)))
     else:
-      out.append(['Template "%s" not found. ' % template_name, ('style/color', 'red')])
+      if error is None:
+	error = 'Template "%s" not found. ' % template_name
+      out.append([error, ('style/color', 'red')])
   for k, v in DEFAULT_SYM.iteritems():
     sym.setdefault(k, v)
   return sym, char, template, out, log
+
+TRAILING_DIGIT_RE=re.compile(r'^(.*?)(\d+)$')
 
 def get_expansions(expr, char, template):
   expansions = []
@@ -202,9 +217,18 @@ def get_expansions(expr, char, template):
     if template:
       shortcuts.update(template.shortcuts)
     for ex in reversed(list(WORD_RE.finditer(expr))):
-      expand = char.shortcuts.get(ex.group())
-      #logging.debug('expansion: w=%s, ex=%s', repr(ex.group()), repr(expand))
+      word = ex.group()
+      expand = char.shortcuts.get(word)
+      if expand is None:
+	m = TRAILING_DIGIT_RE.match(word)
+	if m:
+	  expand = char.shortcuts.get(m.group(1))
+	  if expand:
+	    expand = expand.replace('$', '')
+	    expand += '(%s)' % m.group(2)
+      logging.info('expansion: w=%s, ex=%s', repr(ex.group()), repr(expand))
       if expand:
+	expand = expand.replace('$', '')
 	expr = expr[:ex.start()] + expand + expr[ex.end():]
 	expansions.append((expand, ex.start(), ex.end()))
     defaults = shortcuts.get('DEFAULTS')
