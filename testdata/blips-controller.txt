@@ -1,0 +1,203 @@
+--- creator testUser, modifier testUser, waveId testWave, blipId # ---------------------------
+Name: Test
+a:Attack: d20 + 5 ">4"
+e(NumDice, TN): count(>= TN, explode(d(NumDice, 6)))
+(NumDice)e(TN): count(>= TN, explode(d(NumDice, 6)))
+fact(n): if(n <= 1, n, mul(n, fact(n - 1)))
+fib(n): if(or(n==0, n==1), n, fib(n-1) + fib(n-2))
+BW(n, TN): with(roll=sort(d(n, 6)), if(n==0, 0, count(>=TN, roll) + BW(count(==6, roll), TN)))
+SpecialResult(n): if(or(n<=8, n>=12), n "Nothing", if(or(n==9, n==12), n "Special Hit", n "Hit"))
+SpecialHit: SpecialResult(3d6)
+
+--- seed 2 -----------------------------------------------
+Roll [Attack] #% ">4":Critical:Nat20
+What is [fib(7)]? #% 13
+[fact(50)] #% 30414093201713378043612608166064768844377641568960512000000000000
+[20e5]
+[e(10, 5)]
+[10x(SpecialHit)]
+[count(!=4, 6d6)+1]
+[d6+count(>=4, 6d6)+1]
+[if(d6>2, "yes", "no")]
+[5x(Attack)]
+[top(3, 4d6)]
+[top(3, 4x(3d6))]
+[BW(12,4)]
+[a]
+[ a ]
+[ Test : a ]
+[a+fact(3)]
+
+--------------------------------------------------
+Name: D20Template
+
+Strength: "UndefinedStrength" # Notify user if they forgot to override it
+StrMod: div(Strength - 10, 2)
+JumpSkill: 0 # Default used when the user doesn't override it
+Jump: d20 + JumpSkill + StrMod
+Speed: 6
+CA: Combat Advantage: 2
+
+--------------------------------------------------
+Name: Warrior
+_template: "D20Template" # Import
+Strength: 18 # Override the template's value
+Axe: d12 + StrMod # Can refer to values from the template
+Warrior's Strike: d8+5
+Double Strike: Warrior's Strike + Warrior's Strike
+withStr(Strength): $
+withStrBonus(N): with(Strength=Strength+N, $)
+springy: with(JumpSkill=10, $)
+j::Jump
+
+--------------------------------------------------
+[Warrior:Axe]
+[ Warrior: Speed ]
+[Warrior: Jump]
+[Warrior: bonus(Jump)]
+[D20Template: Speed]
+[D20Template: Jump]
+[Warrior: Double Strike] [Warrior: Warrior's Strike]
+[Warrior:: withStr22 bonus(Jump)]
+[springy withStr22 bonus(Jump)]
+[springy withStrBonus4 bonus(Jump)]
+[j]
+
+--------------------------------------------------
+Name: MultiWeapon
+_template: "D20Template" # Import
+
+Weapon: Longsword # default weapon
+Longsword: d(TimesW,8) + 2
+Dagger: d(TimesW,4)
+Maul: d(mul(2, TimesW), 6)
+
+TimesW: 1 # Weapon dice multiplier, don't edit
+(N)W: with(TimesW=N, Weapon)
+
+StrMod: 4
+DexMod: 2
+
+b:Basic: 1W + StrMod
+dx: DexDamage: 1W + DexMod
+DailyDamage: 2W + StrMod + DexMod 
+#with sword:with(Weapon=Sword, $)
+#lval $ d6
+
+--------------------------------------------------
+[MultiWeapon:: with(Weapon=Maul, DailyDamage)]
+[DailyDamage]
+[with(Weapon=Dagger, DexDamage)]
+[b]
+[b + 2]
+[b+dx+CA]
+
+--------------------------------------------------
+Name: mw2
+# Default weapon properties, set this for your favorite weapon
+name: "unarmed"; n_dice: 1; n_sides: 4; enh: 0; proficiency: 0; misc_hit: 0; misc_damage: 0; crit_sides: 6
+# Weapon-specific overrides
+withSword: with(name="Longsword+2", n_dice=1, n_sides=8, enh=2, proficiency=3, misc_hit=1, misc_damage=1, crit_sides=6, $)
+withMaul: with(name="Maul+1", n_sides=6, n_dice=2, enh=1, proficiency=2, misc_damage=0, misc_hit=0, $)
+times_w: 1 # power specific dice multiplier
+WeaponHit: enh + proficiency + misc_hit + name
+WeaponDamage: d(mul(n_dice, times_w), n_sides) + enh + misc_damage + name
+WeaponDamage2: d8 + enh + misc_damage + name
+(times_w)W: WeaponDamage
+critical: d(enh, crit_sides) + max($)
+critical2: max($) + d(enh, crit_sides)
+# Simple static values for testing
+StrMod: 4
+DexMod: 2
+HalfLevel: 3
+StrAttack: d20 + StrMod + HalfLevel + WeaponHit
+DexAttack: d20 + DexMod + HalfLevel + WeaponHit
+p1:Power One Attack: StrAttack "vs AC"
+p1d:Power One Damage: 2W + StrMod
+p2:Power Two Attack: DexAttack "vs Reflex"
+p2d:Power Two Damage: 1W + DexMod
+DEFAULTS:: withSword
+
+--------------------------------------------------
+[mw2::withMaul Power One Attack]
+[Power Two Attack]
+[p1, p1d]
+[withMaul Power One Attack, Power One Damage]
+[withMaul Power One Attack, (withSword Power One Damage), Power One Damage]
+[withMaul p1, p1d]
+[WeaponDamage]
+[WeaponDamage2]
+[withMaul critical Power One Damage]
+[withMaul critical2 Power One Damage]
+
+--------------------------------------------------
+Name: Params
+Broadsword(n): d8+n
+Broadsword: Broadsword(0)
+
+hit(roll, modifiedtarget): if(roll>=modifiedtarget, roll "hit, bonus={bonus}", roll "miss by {modifiedtarget - roll}, bonus={bonus}")
+bonus: 0 # default value
+attack(target): hit(d100, target + bonus)
+attack(target)b(newBonus): with(bonus=newBonus, attack(target))
+attackT(target)b(bonus): attack(target)
+attack: attack(50) # default target 
+
+--------------------------------------------------
+[Params: Broadsword(5)] [Params: Broadsword4] [Params: Broadsword]
+[Params: attack(80)] [Params: attack] [Params: attackT90b2] [Params: attack70b7]
+
+--------------------------------------------------
+Name: macrotest
+# Uses experimental features, the macro feature isn't final.
+# See DiceLink Feature and Development Discussions (#2) .
+Enh: 2
+Pow: Enh + 100
+super: with(Enh=4, $)
+enh(Enh): $
+add(n): with(Enh=Enh+n, $)
+
+--------------------------------------------------
+[macrotest::Pow] [super Pow] [enh7 Pow] [add10 Pow] [super add10 Pow]
+
+--------------------------------------------------
+Name: BadTemplate
+_template: "Missing"
+Attack: d8
+
+--------------------------------------------------
+Name: TrailingSpace 
+Skill: 5
+
+--------------------------------------------------
+[TrailingSpace: Skill]
+
+--------------------------------------------------
+Name: 天地
+力: 3d6
+
+--------------------------------------------------
+[天地:: 力] [力]
+EXPECT_ERROR: [天地mistype: 力] #% mistype" not found
+
+--------------------------------------------------
+EXPECT_ERROR: [BadCharacter: Attack] #% Sheet "BadCharacter" not found.
+EXPECT_ERROR: [BadTemplate: Attack] #% Template "Missing" not found.
+EXPECT_ERROR: [2 + 2.] #% ParseError: Unsupported syntax '.' at end of '2 + 2.'
+EXPECT_ERROR: [:foo] #% ParseError: Symbol "foo" not found
+EXPECT_ERROR: [!list] 
+[!list Test]
+[! list Test ]
+
+--------------------------------------------------
+[: 3x d20]
+[::d6]
+NONAME: [d20]
+
+--------------------------------------------------
+[::d6, d4, 13]
+[repeat(4, d20+2+_)]
+[5x d20+3+_]
+[map(d20+4+_, ("a", "b", "c"))]
+[map $ d20, "a", "b"+2, "c"]
+
+--------------------------------------------------

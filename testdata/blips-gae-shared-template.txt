@@ -1,0 +1,72 @@
+--- creator firstuser, modifier firstuser, waveId testWave1, blipId # ---------------------------
+Name: base
+_access: public
+b: 1 "base"
+x: 1 "base"
+
+--------------------------------------------------
+Name: personal
+b: 1 "personal"
+x: 1 "personal"
+
+--------------------------------------------------
+Name: keyed
+_access: x1y2
+b: 1 "keyed"
+x: 1 "keyed"
+
+--- creator otheruser, modifier otheruser ---------------------------
+[base: b] #% 1:"base"
+[personal: b] #% 1:"personal"
+[keyed: b] #% 1:"keyed"
+
+--- creator otheruser, modifier otheruser, waveId testWave2 ---------------------------
+EXPECT_ERROR: [base: b] #% Sheet "base" not found.
+EXPECT_ERROR: [personal: b] #% Sheet "personal" not found.
+EXPECT_ERROR: [keyed: b] #% Sheet "keyed" not found.
+
+--------------------------------------------------
+Name: oc_ok_public
+_template: "base" @testWave1
+x: 2 "otheruser"
+
+--------------------------------------------------
+Name: oc_ok_key
+_template: "base" @testWave1 = x1y2
+
+--------------------------------------------------
+Name: oc_bad_wrongwave
+_template: "base"
+
+--------------------------------------------------
+Name: oc_bad_personal
+_template: "personal" @testWave1
+
+--------------------------------------------------
+Name: oc_bad_wrongkey
+_template: "keyed" @testWave1 = wrongKey
+
+--------------------------------------------------
+[oc_bad_wrongwave: b] #% Symbol "b" not found
+[oc_bad_wrongkey: b] #% Symbol "b" not found
+[oc_bad_personal: b] #% Symbol "b" not found
+[oc_ok_public: b] #% 1:"base"
+[oc_ok_public: x] #% 2:"otheruser"
+[oc_ok_key: b] #% 1:"base"
+
+--- creator firstuser, modifier firstuser ---------------------------
+[base: b] #% 1:"base"
+[personal: b] #% 1:"personal"
+[keyed: b] #% 1:"keyed"
+
+--- creator firstuser, modifier firstuser ---------------------------
+[!clear base] #% cleared: 1
+[!clear personal] #% cleared: 1
+[!clear keyed] #% cleared: 1
+
+--- creator otheruser, modifier otheruser ---------------------------
+[!clear oc_ok_public] #% cleared: 1
+[!clear oc_ok_key] #% cleared: 1
+[!clear oc_bad_wrongwave] #% cleared: 1
+[!clear oc_bad_personal] #% cleared: 1
+[!clear oc_bad_wrongkey] #% cleared: 1
