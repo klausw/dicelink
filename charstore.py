@@ -1,8 +1,21 @@
-class PermissionError(Exception):
+class Error(Exception):
+  def __init__(self, msg):
+    self.msg = msg
+  def __str__(self):
+    return 'CharstoreError: ' + self.msg
+
+class PermissionError(Error):
   def __init__(self, msg):
     self.msg = msg
   def __str__(self):
     return 'PermissionError: ' + self.msg
+
+class AppengineError(Error):
+  def __init__(self, msg):
+    self.msg = msg
+  def __str__(self):
+    return 'AppengineError: ' + self.msg
+
 
 class CharStore(object):
   def __init__(self):

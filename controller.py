@@ -192,7 +192,7 @@ def get_char_and_template(storage, charname):
     error = None
     try:
       template = storage.get(template_name, template_location, template_key)
-    except charstore.PermissionError, e:
+    except charstore.Error, e:
       error = str(e) + ' '
     if template:
       logging.debug('Using template "%s" for "%s"' % (template.name, char.name))

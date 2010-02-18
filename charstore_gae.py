@@ -3,8 +3,14 @@ import charsheet
 import persist
 import logging
 
+import google.appengine.ext.db
+
 def DeleteCharactersInBlip(waveId, waveletId, blipId):
-  persist.DeleteCharacterBlip(waveId, waveletId, blipId)
+  try:
+    persist.DeleteCharacterBlip(waveId, waveletId, blipId)
+  except google.appengine.ext.db.Error, e:
+    raise charstore.AppengineError(str(e))
+    
 
 class GaeCharStore(charstore.CharStore):
   def __init__(self, creator, modifier, waveId, waveletId, blipId):
@@ -15,39 +21,49 @@ class GaeCharStore(charstore.CharStore):
     self.blipId = blipId
 
   def get(self, name, altcontext=None, key=None):
-    fromWave = self.waveId
-    if altcontext is not None:
-      fromWave = altcontext
-    sheet_txt = persist.GetCharacter(name, self.modifier, fromWave, self.waveletId)
-    if not sheet_txt:
-      sheet_txt = persist.GetSheet(name) # backwards compatible
-    if not sheet_txt:
-      return None
-    sheet = charsheet.CharSheet(sheet_txt)
-    if fromWave != self.waveId:
-      # Privacy/security check: permissions for other-Wave characters?
-      perms = sheet.dict.get('_access')
-      #logging.info('perms=%s, key=%s', repr(perms), repr(key))
-      if perms is None:
-	raise charstore.PermissionError('Template "%s" exists but is not public, add "_access: public" to the template blip to share it.' % name)
-      if perms.lower() != 'public':
-	if key is None:
-	  raise charstore.PermissionError('Template "%s" is password protected. Change "@%s" to "@%s=PASSWORD" in the _template line.' % (name, fromWave, fromWave))
-	if key != perms:
-	  raise charstore.PermissionError('Template "%s" is password protected, the supplied password is incorrect.' % name)
-    return sheet
+    try:
+      fromWave = self.waveId
+      if altcontext is not None:
+	fromWave = altcontext
+      sheet_txt = persist.GetCharacter(name, self.modifier, fromWave, self.waveletId)
+
+      if not sheet_txt:
+	sheet_txt = persist.GetSheet(name) # backwards compatible
+      if not sheet_txt:
+	return None
+      sheet = charsheet.CharSheet(sheet_txt)
+      if fromWave != self.waveId:
+	# Privacy/security check: permissions for other-Wave characters?
+	perms = sheet.dict.get('_access')
+	#logging.info('perms=%s, key=%s', repr(perms), repr(key))
+	if perms is None:
+	  raise charstore.PermissionError('Template "%s" exists but is not public, add "_access: public" to the template blip to share it.' % name)
+	if perms.lower() != 'public':
+	  if key is None:
+	    raise charstore.PermissionError('Template "%s" is password protected. Change "@%s" to "@%s=PASSWORD" in the _template line.' % (name, fromWave, fromWave))
+	  if key != perms:
+	    raise charstore.PermissionError('Template "%s" is password protected, the supplied password is incorrect.' % name)
+      return sheet
+    except google.appengine.ext.db.Error, e:
+      raise charstore.AppengineError(str(e))
 
   def put(self, sheet):
-    name = sheet.name
-    persist.SaveCharacter(name, self.creator, self.waveId, self.waveletId, self.blipId, sheet.__str__())
-    #if blipId:
-    #  SetTextOfBlip(context, waveId, waveletId, blipId, sheet.__str__())
+    try:
+      name = sheet.name
+      persist.SaveCharacter(name, self.creator, self.waveId, self.waveletId, self.blipId, sheet.__str__())
+      #if blipId:
+      #  SetTextOfBlip(context, waveId, waveletId, blipId, sheet.__str__())
+    except google.appengine.ext.db.Error, e:
+      raise charstore.AppengineError(str(e))
 
   def getdefault(self):
     return persist.GetDefaultChar(self.modifier)
 
   def setdefault(self, name):
-    return persist.SetDefaultChar(self.modifier, name)
+    try:
+      return persist.SetDefaultChar(self.modifier, name)
+    except google.appengine.ext.db.Error, e:
+      raise charstore.AppengineError(str(e))
 
   def list(self, name):
     out = []
@@ -57,7 +73,11 @@ class GaeCharStore(charstore.CharStore):
       msg = [txt] + list(attrs)
       out.append((msg, None))
 
-    chars = list(persist.FindCharacter(name, self.modifier, self.waveId, self.waveletId))
+    try:
+      chars = list(persist.FindCharacter(name, self.modifier, self.waveId, self.waveletId))
+    except google.appengine.ext.db.Error, e:
+      raise charstore.AppengineError(str(e))
+
     if not chars:
       show('no matches for "%s"' % name, ('style/color', 'red'))
     for idx, char in enumerate(chars):
@@ -90,7 +110,10 @@ class GaeCharStore(charstore.CharStore):
     return out
 
   def clear(self, name):
-    msg = persist.ClearCharacterForOwner(name, self.modifier)
+    try:
+      msg = persist.ClearCharacterForOwner(name, self.modifier)
+    except google.appengine.ext.db.Error, e:
+      raise charstore.AppengineError(str(e))
     return [([msg, ('style/color', '#777777')], msg)]
 
   def waveid(self, unused_dummy):

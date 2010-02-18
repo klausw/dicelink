@@ -17,4 +17,8 @@ if __name__ == '__main__':
   myRobot.RegisterHandler(events.WAVELET_SELF_ADDED, wave_ops.OnRobotAdded)
   myRobot.RegisterHandler(events.BLIP_SUBMITTED, wave_ops.OnBlipSubmitted)
   myRobot.RegisterHandler(events.BLIP_DELETED, wave_ops.OnBlipDeleted)
+
+  # ../secrets/*.py
+  #myRobot.setup_oauth(credentials.CONSUMER_KEY, credentials.CONSUMER_SECRET, server_rpc_base='http://gmodules.com/api/rpc') 
+
   myRobot.Run()
