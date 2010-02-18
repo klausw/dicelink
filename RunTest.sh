@@ -1,1 +1,1 @@
-time wget -q -O- 'http://localhost:8080/test?format=plain'
+time wget -q -O- 'http://localhost:8080/deadbeef/test?format=plain'

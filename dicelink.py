@@ -230,7 +230,7 @@ application = webapp.WSGIApplication(
                                       #('/chars', CharList)],
                                       ('/char', CharUpdateForm),
                                       ('/charupdate', CharUpdate),
-                                      ('/ftest', RunTests),
+                                      ('/deadbeef/ftest', RunTests),
 				     ],
                                      debug=True)
 
