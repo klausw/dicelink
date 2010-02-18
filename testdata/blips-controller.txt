@@ -1,4 +1,8 @@
 --- creator testUser, modifier testUser, waveId testWave, blipId # ---------------------------
+--- seed 2 -----------------------------------------------
+d20+5 #% 25
+
+--------------------------------------------------
 Name: Test
 a:Attack: d20 + 5 ">4"
 e(NumDice, TN): count(>= TN, explode(d(NumDice, 6)))
@@ -123,7 +127,7 @@ DEFAULTS:: withSword
 --------------------------------------------------
 [mw2::withMaul Power One Attack]
 [Power Two Attack]
-[p1, p1d] #% Power One Attack
+[p1, p1d] #% Power One Attack, Power One Damage
 [withMaul Power One Attack, Power One Damage]
 [withMaul Power One Attack, (withSword Power One Damage), Power One Damage]
 [withMaul p1, p1d]

@@ -34,7 +34,7 @@ def process_text(txt, replacer, storage):
       logging.info('inline: %s=%s (%s)', spec['spec'], num, detail)
       match_start = spec['start'] + offset
       match_end = spec['end'] + offset
-      offset += SetTextWithAttributes(doc, match_start, match_end, [
+      offset += replacer(match_start, match_end, [
 	[spec['spec'], ('style/color', '#aa00ff')],
 	['=%d' % num, ('style/fontWeight', 'bold')],
 	[' ('],
