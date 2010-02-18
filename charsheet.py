@@ -8,20 +8,21 @@ import charstore
 # Name: Value
 # Long Name: complex value; Another Name: another value
 ITEMS_RE=re.compile(ur'''
-  \s*
+  ^
+  [ \t]*
   (?:
     (?P<abbr> [\w\u0080-\uffff]+ (?: \(\) )?)
-    : \s*
+    : [ \t]*
   )?
   (?P<sym>
     [(]?[_a-z\u0080-\uffff][\w\u0080-\uffff' (),]*
-  )? : \s*
+  )? : [ \t]*
   (?P<exp>
     [^;\n]*?
   )
-  \s*
+  [ \t]*
   (?: [;\n] | $ )
-''', re.X | re.I)
+''', re.X | re.I | re.M)
 
 NUMBER_RE=re.compile(r'^\d+$')
 

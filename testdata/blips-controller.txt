@@ -4,6 +4,17 @@ d20+5 #% 25
 
 --------------------------------------------------
 Name: Test
+DEFAULTS::
+
+dd:Dagger:d4+5
+Other: 42
+
+--------------------------------------------------
+Verify that the empty DEFAULTS:: doesn't interfere with remaining lines
+[Other] #% 42
+
+--------------------------------------------------
+Name: Test
 a:Attack: d20 + 5 ">4"
 e(NumDice, TN): count(>= TN, explode(d(NumDice, 6)))
 (NumDice)e(TN): count(>= TN, explode(d(NumDice, 6)))
