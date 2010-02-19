@@ -39,10 +39,39 @@ def OnRobotAdded(properties, context):
   SetTextWithAttributes(doc, 0, 0, [
 	  ['DiceLink joined. '],
 	  ['Privacy policy, Help', ('link/manual', 'https://wave.google.com/wave/#restored:wave:googlewave.com!w%252BeDRGxAAiN')],
+	  [' '],
   ])
+  #doc.AppendElement(
+  #    document.FormElement(
+  #        document.ELEMENT_TYPE.BUTTON, 'test', value='Test!'))
 
   #counter = document.Gadget(GADGET_URL)
   #doc.AppendElement(counter)
+
+def OnButtonClicked(properties, context):
+  logging.info("button clicked:\n%s\n%s", repr(properties), repr(context))
+  blipId = properties['blipId']
+  blip = context.GetBlipById(blipId)
+  if not blip:
+    logging.warning('Blip "%s" not found in context: %s' % (blipId, repr(context)))
+    return
+
+  modifier = properties.get('modifiedBy')
+  button = properties.get('button')
+
+  doc = blip.GetDocument()
+  txt = doc.GetText()
+  for key, elem in blip.GetElements().iteritems():
+    if elem.type == document.ELEMENT_TYPE.BUTTON:
+      if elem.name == 'test':
+	doc.ReplaceElement(key,
+	  document.FormElement(document.ELEMENT_TYPE.BUTTON, 'Roll', value='Roll!'))
+	doc.InsertElement(key,
+	  document.FormElement(document.ELEMENT_TYPE.INPUT, 'test2', value='Test?'))
+      else:
+	doc.ReplaceElement(key,
+	  document.FormElement(document.ELEMENT_TYPE.BUTTON, 'test', value='Test again!'))
+    logging.info("element: %s %s", repr(key), repr(elem))
 
 def OnBlipDeleted(properties, context):
   """Invoked when a blip was deleted."""
@@ -82,3 +111,4 @@ def OnBlipSubmitted(properties, context):
   controller.process_text(txt, replacer, storage)
 
   #doc.GadgetSubmitDelta(document.Gadget(GADGET_URL), {'count': num})
+
