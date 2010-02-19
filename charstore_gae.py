@@ -3,12 +3,12 @@ import charsheet
 import persist
 import logging
 
-import google.appengine.ext.db
+import google.appengine.runtime.apiproxy_errors
 
 def DeleteCharactersInBlip(waveId, waveletId, blipId):
   try:
     persist.DeleteCharacterBlip(waveId, waveletId, blipId)
-  except google.appengine.ext.db.Error, e:
+  except google.appengine.runtime.apiproxy_errors.Error, e:
     raise charstore.AppengineError(str(e))
     
 
@@ -44,7 +44,7 @@ class GaeCharStore(charstore.CharStore):
 	  if key != perms:
 	    raise charstore.PermissionError('Template "%s" is password protected, the supplied password is incorrect.' % name)
       return sheet
-    except google.appengine.ext.db.Error, e:
+    except google.appengine.runtime.apiproxy_errors.Error, e:
       raise charstore.AppengineError(str(e))
 
   def put(self, sheet):
@@ -53,7 +53,7 @@ class GaeCharStore(charstore.CharStore):
       persist.SaveCharacter(name, self.creator, self.waveId, self.waveletId, self.blipId, sheet.__str__())
       #if blipId:
       #  SetTextOfBlip(context, waveId, waveletId, blipId, sheet.__str__())
-    except google.appengine.ext.db.Error, e:
+    except google.appengine.runtime.apiproxy_errors.Error, e:
       raise charstore.AppengineError(str(e))
 
   def getdefault(self):
@@ -62,7 +62,7 @@ class GaeCharStore(charstore.CharStore):
   def setdefault(self, name):
     try:
       return persist.SetDefaultChar(self.modifier, name)
-    except google.appengine.ext.db.Error, e:
+    except google.appengine.runtime.apiproxy_errors.Error, e:
       raise charstore.AppengineError(str(e))
 
   def list(self, name):
@@ -75,7 +75,7 @@ class GaeCharStore(charstore.CharStore):
 
     try:
       chars = list(persist.FindCharacter(name, self.modifier, self.waveId, self.waveletId))
-    except google.appengine.ext.db.Error, e:
+    except google.appengine.runtime.apiproxy_errors.Error, e:
       raise charstore.AppengineError(str(e))
 
     if not chars:
@@ -112,7 +112,7 @@ class GaeCharStore(charstore.CharStore):
   def clear(self, name):
     try:
       msg = persist.ClearCharacterForOwner(name, self.modifier)
-    except google.appengine.ext.db.Error, e:
+    except google.appengine.runtime.apiproxy_errors.Error, e:
       raise charstore.AppengineError(str(e))
     return [([msg, ('style/color', '#777777')], msg)]
 
