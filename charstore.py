@@ -37,10 +37,10 @@ class CharStore(object):
     return []
 
   def clear(self, name):
-    return
+    return []
 
   def waveid(self, unused_dummy):
-    return None
+    return []
 
 class InMemoryCharStore(CharStore):
   def __init__(self):
@@ -58,3 +58,10 @@ class InMemoryCharStore(CharStore):
 
   def setdefault(self, name):
     self.default = name
+
+  def clear(self, name):
+    if name in self.characters:
+      del self.characters[name]
+      return [(['cleared: 1'], None)]
+    else:
+      return [(['cleared: 0'], None)]
