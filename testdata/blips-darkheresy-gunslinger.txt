@@ -1,0 +1,369 @@
+--- creator testUser, modifier testUser, waveId testWave, blipId # ---------------------------
+# Dark Heresy Character template for use with DiceLink
+
+# Add dicelink@appspot.com to your Wave to use this Character Sheet.
+# Search for Tag:DiceLink to find more info about DiceLink.
+# I hardly claim this as my own work. I simply tried to use Klause's awesome dicebot for my own dark and heretic purposes
+# and even "forced" him for some changes in his now inevitably corrupt dicebot .)
+# Also, thanks to the Ryan Dasso for the "template" text for this template.)
+
+# Please feel free to edit it as needed for spelling/syntax (Please make major changes in your own wave/blip or make a suggestion)
+
+# Basic Concept:
+# The Character Sheet has been split into two parts, since the implementation of Templates: the Template and the Character Sheet.
+# The Template holds all the data that are common to all characters. It is mostly the formulas/backend.
+# The Character Sheet holds all the data that are specific to an individual character.
+# Changes made to the Template are, more or less, made for all the characters.
+# If the same data exists in both the Template and Character Sheet, the Character Sheet data is used.
+
+# Basic Usage:
+# This is the Default template that you'll copy into your Wave(you do not need to make it public). 
+# You only need one copy of a template per Wave.
+# Any Character Sheets that reference this template will refer to it for any queries that aren't explicitly defined in the Character Sheet.
+
+
+# Default Dark Heresy Character Template
+
+Name: DefaultDH
+
+# DH Rolls
+# That's your usual DH test roll - it shows value rolled on d100, target effective stat value and degrees of success/failure.
+# use [vs(stat)] for simple tests - 
+# [DefaultDH:vs(35) ="failure 98 vs 35 doF:6"]
+SuccessMarker(TN, roll): if(roll <= TN, "success {roll} vs {TN} doS:{(TN-roll)/10}", "failure {roll} vs {TN} doF:{(roll-TN)/10}") 
+vs(TN):SuccessMarker(TN+Difficulty,d100)
+
+Difficulty:0
+# when you need to ajust difficulty(something like easy Literacy check), use following modfiers before roll(and special thanks to Klaus, again)
+# so easy Literacy check is, perfectly logical, [Easy Literacy]
+diff:Difficult: with(Difficulty=Difficulty-10,$)
+h:Hard: with(Difficulty=Difficulty-20,$)
+vh:Very_Hard: with(Difficulty=Difficulty-30,$);
+ord:Ordinary: with(Difficulty=Difficulty+10,$)
+rtn:Routine: with(Difficulty=Difficulty+20,$)
+e:Easy: with(Difficulty=Difficulty+30, $);
+# [Hero:Easy Literacy ="success 1 vs 61 doS:6"]
+
+bonus(n):with(Difficulty=Difficulty+n,$) 
+
+# Stats
+
+# This section calculates your Stats Modifiers
+SB:StrBonus: S/10
+TB:TghBonus: T/10
+AgBonus: Ag/10
+IntBonus: Int/10
+PerBonus: Per/10
+WPBonus: WP/10
+FelBonus: Fel/10
+
+# Use [Stat Check] to quickly make basic stat checks.
+WS_Check: vs(WS)
+BS_Check: vs(BS)
+Str_Check: vs(S)
+Tgh_Check: vs(T)
+Ag_Check: vs(Ag)
+Int_Check: vs(Int)
+Per_Check: vs(Per)
+WP_Check: vs(WP)
+Fel_Check: vs(Fel)
+
+# Skills
+# Use [Skill] to quickly make basic Skill checks.
+# For use of "extended" skills like Common Lore - add exact lore to the character sheet as variable(e.g. clTech), with appropriate value
+# and use [Common_Lore(clTech)]
+
+# For "Skills as Basic" use prefix sBasic(Stat), where Stat is apropriate stat for the skill
+sBasic(Stat): with(Difficulty=Difficulty+Stat/2,$)
+# [Hero: sBasic(Int) Common_Lore(clTech)  ="failure 98 vs 15 doF:8"]
+# You should never need to change these values. Most changes should be made in the previous section.
+Acrobatics: if(AcrobaticksSkill==-1,vs(0),vs(Ag+AcrobaticksSkill))
+Awareness: if(AwarenessSkill==-1,vs(Per/2),vs(Per+AwarenessSkill))
+Blather: if(BlatherSkill==-1,vs(Fel/2),vs(Fel+BlatherSkill))
+Barter: if(BarterSkill==-1,vs(0),vs(Fel+BarterSkill))
+Carouse: if(CarouseSkill==-1,vs(T/2),vs(T+CarouseSkill))
+Charm: if(CharmSkill==-1,vs(Fel/2),vs(Fel+CharmSkill))
+Chem_Use: if(Chem_UseSkill==-1,vs(0),vs(Int+Chem_UseSkill))
+Ciphers(sk): if(sk==-1,vs(0),vs(Int+sk))
+Climb: if(ClimbSkill==-1,vs(S/2),vs(S+ClimbSkill))
+Command: if(CommandSkill==-1,vs(Fel/2),vs(Fel+CommandSkill))
+Commerce: if(CommerceSkill==-1,vs(0),vs(Fel+CommerceSkill))
+Common_Lore(sk): if(sk==-1,vs(0),vs(Int+sk))
+Concealment: if(ConcealmentSkill==-1,vs(Ag/2),vs(Ag+ConcealmentSkill))
+Contortionist: if(ContortionistSkill==-1,vs(Ag/2),vs(Ag+ContortionistSkill))
+Deceive: if(DeceiveSkill==-1,vs(Fel/2),vs(Fel+DeceiveSkill))
+Demolition: if(DemolitionSkill==-1,vs(0),vs(Int+DemolitionSkill))
+Disguise: if(DisguiseSkill==-1,vs(Fel/2),vs(Fel+DisguiseSkill))
+Dodge: if(DodgeSkill==-1,vs(Ag/2),vs(Ag+DodgeSkill))
+Drive: if(DriveSkill==-1,vs(0),vs(Ag+DriveSkill))
+Evaluate: if(EvaluateSkill==-1,vs(Int/2),vs(Int+EvaluateSkill))
+Forbidden_Lore(sk): if(sk==-1,vs(0),vs(Int+sk))
+Gamble: if(GambleSkill==-1,vs(Int/2),vs(Int+GambleSkill))
+Inquiry: if(InquirySkill==-1,vs(Fel/2),vs(Fel+InquirySkill))
+Interrogation: if(InterrogationSkill==-1,vs(0),vs(WP+InterrogationSkill))
+Intimidate: if(IntimidateSkill==-1,vs(S/2),vs(S+IntimidateSkill))
+Invocation: if(InvocationSkill==-1,vs(0),vs(WP+InvocationSkill))
+Lip_Reading: if(Lip_ReadingSkill==-1,vs(0),vs(Per+Lip_ReadingSkill))
+Literacy: if(LiteracySkill==-1,vs(0),vs(Int+LiteracySkill))
+Logic: if(LogicSkill==-1,vs(Int/2),vs(Int+LogicSkill))
+Medicae: if(MedicaeSkill==-1,vs(0),vs(Int+MedicaeSkill))
+Navigation(sk): if(sk==-1,vs(0),vs(Int+sk))
+Performer(sk): if(sk==-1,vs(0),vs(Fel+sk))
+Pilot(sk): if(sk==-1,vs(0),vs(Ag+sk))
+Psyniscence: if(PsyniscenceSkill==-1,vs(0),vs(Per+PsyniscenceSkill))
+Scholastic_Lore(sk): if(sk==-1,vs(0),vs(Int+sk))
+Scrutiny: if(ScrutinySkill==-1,vs(Per/2),vs(Per+ScrutinySkill))
+Search: if(SearchSkill==-1,vs(Per/2),vs(Per+SearchSkill))
+Secret_Tongue(sk): if(sk==-1,vs(0),vs(Int+sk))
+Security: if(SecuritySkill==-1,vs(0),vs(Ag+SecuritySkill))
+Shadowing: if(ShadowingSkill==-1,vs(0),vs(Ag+ShadowingSkill))
+Silent_Move: if(Silent_MoveSkill==-1,vs(Ag/2),vs(Ag+Silent_MoveSkill))
+Sleight_of_Hand: if(Sleight_of_HandSkill==-1,vs(0),vs(Ag+Sleight_of_HandSkill))
+Speak_Language(sk): if(sk==-1,vs(0),vs(Int+sk))
+Survival: if(SurvivalSkill==-1,vs(0),vs(Int+SurvivalSkill))
+Swim: if(SwimSkill==-1,vs(S/2),vs(S+SwimSkill))
+Tech_Use: if(Tech_UseSkill==-1,vs(0),vs(Int+Tech_UseSkill))
+Tracking: if(TrackingSkill==-1,vs(0),vs(Int+TrackingSkill))
+Trade(sk): if(sk==-1,vs(0),vs(Int+sk))
+Wrangling: if(WranglingSkill==-1,vs(0),vs(Int+WranglingSkill))
+
+# Default Skill values(so character list gets simplier)
+
+AcrobaticsSkill: -1
+AwarenessSkill: -1
+BlatherSkill: -1
+BarterSkill: -1
+CarouseSkill: -1
+CharmSkill: -1
+Chem_UseSkill: -1
+ClimbSkill: -1
+CommandSkill: -1
+CommerceSkill: -1
+ConcealmentSkill: -1
+ContortionistSkill: -1
+DeceiveSkill: -1
+DemolitionSkill: -1
+DisguiseSkill: -1
+DodgeSkill: -1
+DriveSkill: -1
+EvaluateSkill: -1
+GambleSkill: -1
+InquirySkill: -1
+InterrogationSkill: -1
+IntimidateSkill: -1
+InvocationSkill: -1
+Lip_ReadingSkill: -1
+LiteracySkill: -1
+LogicSkill: -1
+MedicaeSkill: -1
+PsyniscenceSkill: -1
+ScrutinySkill: -1
+SearchSkill: -1
+SecuritySkill: -1
+ShadowingSkill: -1
+Silent_MoveSkill: -1
+Sleight_of_HandSkill: -1
+SurvivalSkill: -1
+SwimSkill: -1
+Tech_UseSkill: -1
+TrackingSkill: -1
+WranglingSkill: -1
+
+
+# Combat
+
+# Set to 1 in your sheet for characters with Lightning reflexes(can also be used to show unnatural agility)
+Lightning Reflexes:0
+
+init:Initiative: 1d10+AgBonus*(1+Lightning Reflexes)
+
+#damage gotten through your defences; roll is damageroll, AP is your (effective, after penetration substracted)armour on the spot
+
+Literal_damage(roll,AP,TB): roll-AP-TB
+
+# Hit location scripts
+#reverse digits of the hit
+locate(roll):ones(roll)*10+tens(roll)
+tens(roll):roll/10
+ones(roll):roll-(roll/10)*10
+
+# location by the number
+HitLocationsTable(roll): cond(roll<=10, "{roll} - Head", roll<=20, "{roll} - Right Arm",  roll<=30, "{roll} - Left Arm", roll<=70, "{roll} - Body", roll<=85, "{roll} - Right Leg", "{roll} - Left Leg")
+
+AttackChecker(TN, roll): if(roll<= TN+Difficulty, "{SuccessMarker(TN+Difficulty, roll)}, location:{HitLocationsTable(locate(roll))}", SuccessMarker(TN+Difficulty, roll))
+
+# Melee attacks
+MeleeHit: AttackChecker(WS,d100)
+
+mAllOut: bonus20 MeleeHit
+mCharge: bonus10 MeleeHit
+# can be used with other attacks as bonus - e.g. [mChargeMod Feint]
+mChargeMod: bonus10 $ 
+# opposed
+Feint: WS_Check
+# after hit do grapple test(opposed)
+mG:mGrapple: WS_Check
+mGrappleTest: Str_Check
+mGuardedAttack: bonus(-10) MeleeHit
+# opposed
+mKnockDown: Str_Check
+mSA:mSwiftAttack: 2x(MeleeHit)
+mLA:mLightningAttack: 3x(MeleeHit)
+mAtt:mStandartAttack: MeleeHit
+# Stun Attack is a normal MeleeHit with normal penalty of -20. if your character have takedown, use it instead. after hit use mStunHit
+mStun: bonus(-20) MeleeHit
+mTakeDown: WS_Check
+mStunHit: 1d10+StrBonus
+# AP is armour points on head
+mStunOppose(AP): 1d10+TghBonus+AP
+
+# Melee moves
+# opposed
+Manoeuvre: WS_Check 
+
+# Ranged attacks
+Distance:0
+# 1-3m
+dPointBlank: with(Distance=30,$)
+# up to half of the weapon range
+dShort:with(Distance=10,$)
+# from double to triple the weapon range
+dLong:with(Distance=-10,$)
+# triple range 
+dExtreme:with(Distance=-30,$)
+
+# use: [dShort rAim rSingleShot]
+
+rSingleShot: AttackChecker(BS + Distance, d100)
+rCalled: bonus(-20) $
+# When using Accurate weapon, override that in your char list
+Aim:10
+FullAim:20
+rAim: bonus(Aim) $ 
+rFullAim: bonus(FullAim) $
+# additional hit per DoS
+rFullAuto: AttackChecker(BS + 20 + Distance, d100)
+# additional hit per 2 DoS
+rSemiAuto: AttackChecker(BS + 10 + Distance, d100)
+rSuppressFire: AttackChecker(BS - 20 + Distance, d100)
+
+# Scatter is always additional hit per two DoS, and only in PointBlank
+
+#damage counter with Emperor's fury 
+# it auto-resolves IF, so you need manually make a BS Check(with same modifiers, remember)
+DamageIF(N,K,B): if(N==0, 0, with(pool=d(N, K), pool + B+ DamageIF(if(count(==K, pool)>=1,1,0 ),K,0 ) ) )
+
+#same as above, but for use with Tearing weapons
+DamageIFR(N,K,B): if(N==0, 0, with(pool=top(N,d(N+1, K)), pool + B+ DamageIF(if(count(==K, pool)>=1,1,0 ),K,0 ) ) )
+
+# Damage scripts modified for Rogue Trader mechanics:
+RT_DamageIF(N,K,B): if(N==0, 0, with(pool=d(N, K), pool + B+ DamageIF(if(count(==K, pool)>=1,N,0 ),K,B ) ) )
+RT_DamageIFR(N,K,B): if(N==0, 0, with(pool=top(N,d(N+1, K)), pool + B+ DamageIF(if(count(==K, pool)>=1,N,0 ),K,B ) ) )
+
+----------------------------------------------------------------------------
+# Basic Usage:
+# This is the Character Sheet that each character can copy into your Wave. 
+# To create your character, edit the data in Orange. You may not need to change some values.
+# Any values that are defined on your Character Sheet superceed values defined on the Template.
+
+Hero's Character Sheet
+
+Name: Hero
+_template: "DefaultDH"
+
+# Values in quotes must be in quotes to be displayed (Namely, all non-numerical values).
+Origin: "Not Chosen"
+Career Path: "Not Chosen"
+XP: 0
+
+
+# Character Stats
+# These are stats you've rolled for your character and ajusted by your world of origin.
+# When you spend exp to increase the stat, best practice is to change the numbers themselves.
+WS: 20
+BS: 20
+S: 20
+T: 20
+Ag: 20
+Int: 20
+Per: 20
+WP: 20
+Fel: 20
+
+Wounds: 0
+FP: 0
+
+# Skills
+# If you have a skill(without mods) add it here(named as usual with "Skill" at the end) with value of 0 - example(Awareness(Per) skill):
+# AwarenessSkill: 0 
+# if you have a skill with mod, add it with the value of the mod, without "plus" - example(Awareness +10 skill):
+# AwarenessSkill: 10
+# If you have "Treat skill as basic", and do not have a skill - use [sBasic(stat) Skill], where stat is appropriate stat, and 
+# Skill is your "treat as basic" skill. 
+
+# Traits(dark sight, accustomed to crowds and so on - that's usually just commented info
+# Traits placeholder
+
+# Talents - some (like BWT(Las)) are reminders, some (like Peer(somebody)) are calculated
+# Those talents, that give bonus to particular test, are calculated like one below:
+peerMech:Peer_Adeptus_Mechanicus: bonus10 $
+# usage:
+
+
+# hatred or talented would be calculated exactly the same, just with another name. Of course, list cannot stop you from writing something like "Hatred_Orks Literacy" to get your +10 - sorry, it's not that automatic. I assume, that player uses talent in appropriate test
+# Talents placeholder
+
+# Skills as basic - just as reminder
+# Skills placeholder
+
+# "Expanded" skills.
+# Skills like Common Lore(smth) or Speak Language(smth) have too much variations to list them all in the template
+# instead of that, players need to place here exact variation of skill (clUnderground) with proper prefix
+# (cl for Common Lore in the example before) and appropriate value, and then use their skill like that:
+# [Common_Lore(clUnderground)]
+# exact name of the variation(clUnderground in this case) is entirely on the player's behalf, and but I suggest notation 
+# present here for the simplicity's sake, as I try to make all skill names make sense, and sound logical
+# Expanded Skills placeholder
+
+
+# Basic Attacks
+# The "+ 0" in dmg rolls is for Crippling Strike/Mighty Shot
+
+# if you have crippling strike, replace 0 with 2 
+Melee_Damage: MeleeWeapon(StrBonus + 0) 
+
+# if you have mighty shot, replace 0 with 2
+Ranged_Damage: RangedWeapon(0) 
+
+# Damage of the weapon is calculated using either DamageIF( script for normal weapons or DamageIFR for rending weapons
+# Those scripts are written to make easier Emperor's fury counting when making mass damage rolls. When DM is making 
+# rolls for normal thugs, it's suggested that he use just 1d10+M like usual. 
+# DamageIF(N,K,M+B) - N is number of dice(1 for most weapons, 2+ for autocannons and other heavy stuff), K is number 
+# of sides(10 for most rolls, 5 for particularly weak weapons), M is bonus - M in 1d10+M for weapon. B is literal "B", which is 
+# additional bonus from weapon talents - either Mighty Shot for ranged weapon, or Crushing Blow for melee(in melee it also includes StrBonus). it's received by 
+# weapon script, so leave B as it is.
+
+RangedWeapon(B): 0  
+# Change this to your ranged weapon's damage value. 0 simulates no ranged weapon.
+MeleeWeapon(B): DamageIF(1,5,-2+B)   
+# Change this to your melee weapon's damage value. #DamageIF(1,5,-2+B) is 1d5-2 - unarmed
+
+# only as examples 1d10 sword, 1d10+2 tearing chainsword, 1d10+5 boltpistol
+Sword: DamageIF(1,10,B) 
+Chainsword: DamageIFR(1,10,2+B) 
+BoltPistol: DamageIF(1,10,5+B)
+# place stats for weapon under it's line in comments - range, modes and etc. 
+
+# place here commented info about armour worn, and its locations
+
+# Gear(Auspex, Grapnel - anything that gives bonus to test, or just lays down here)
+Auspex: bonus20
+# any other "modificator" item would use the same script with the different number in parentheses
+
+# Place here commented info about everything else character have on him.
+
+--- seed 2 ---------------------------------------------------------------
+[Hero:Peer_Adeptus_Mechanicus Blather] #% failure 96 vs 20 doF:7
+[rAim rFullAuto] #% "failure 95 vs 50 doF:4"
+[vh Demolition] #% "failure 6 vs -30 doF:3"
+[Melee_Damage] #% d5(1)=
