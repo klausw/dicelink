@@ -119,9 +119,9 @@ class CharSheet(object):
   def __str__(self):
     return self.text()
       
-
+CHARSHEET_RE = re.compile(r'^[^[]*\bName:', re.S)
 def isCharSheet(txt):
-  return 'Name:' in txt
+  return CHARSHEET_RE.match(txt)
 
 COMMENT_RE = re.compile(r'^(.*?)(#.*)$', re.M)
 REMOVE_QUOTE_RE = re.compile(r'"[^"]*"')

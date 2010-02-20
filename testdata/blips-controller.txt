@@ -16,6 +16,39 @@ Verify that the empty DEFAULTS:: doesn't interfere with remaining lines
 [Wit] #% 5
 
 --------------------------------------------------
+Name: CharacterName
+foo: 42
+
+--------------------------------------------------
+[CharacterName: foo] #% 42
+# this is not a character sheet despite containing Name:
+[!clear CharacterName] #% cleared: 1
+
+--------------------------------------------------
+NotAName: NotHere
+foo: 43
+
+--------------------------------------------------
+[NotAName: foo] #% not found
+
+--------------------------------------------------
+# Leading comment, is valid charsheet
+Name: CharAfterComment
+foo: 44
+
+--------------------------------------------------
+[CharAfterComment: foo] #% 44
+[!clear CharAfterComment] #% cleared: 1
+
+--------------------------------------------------
+# Leading comment, is valid charsheet
+Name: Name
+foo: 45
+
+--------------------------------------------------
+[Name: foo] #% 45
+
+--------------------------------------------------
 Name: Test
 a:Attack: d20 + 5 ">4"
 e(NumDice, TN): count(>= TN, explode(d(NumDice, 6)))

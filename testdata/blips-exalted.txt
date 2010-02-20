@@ -1,0 +1,287 @@
+--- creator testUser, modifier testUser, waveId testWave, blipId # ---------------------------
+Name: ExaltedTemplate
+_access: public
+# To use in your sheet, add the following line (without '#'):
+# _template: ExaltedTemplate @googlewave.com!w+mjMS0ouvF
+#
+#This Template was written by Klaus, Brian and me (Jose) Thxs Generous Work without their help this would not be possible.
+# Basic die roll functions.
+# Roll num d10, count how many meet or exceed the target number.
+# Includes variants that count 10s as double successes.
+
+# Helper functions - you probably won't want to use these directly.
+markCrit(roll, succ): if(and(succ==0, count(==1, roll)>0), succ + "botch", succ)
+successes(roll, target): count(pick(>=target, roll))
+exaltedVal(num, target): with(roll=sort(d(num, 10)), markCrit(roll, successes(roll, target))) 
+exaltedValDouble(num, target, doubleNum): with(roll=sort(d(num, 10)), markCrit(roll, successes(roll, target)) + val(count(>=doubleNum, roll)))
+
+# Main dice rolling functions, including critical failure markings. The variables
+# poolMod and externalBonus collects bonuses and penalties, you can ignore
+# these if you are not using the prefix modifier definitions below.
+#   Example: [exalted(3, 7)] => 3d10(1,3,6)=0:"critical",
+exalted(num, target): exaltedVal(num + poolMod, target) + externalMod
+exaltedd(num, target): exaltedValDouble(num + poolMod, target, 10) + externalMod # count 10s double
+
+# Shorter versions intended for interactive use. These work only for integer arguments,
+# use the exalted() and exaltedd() functions if you need variable or calculated arguments.
+# Examples:
+#     [8s7] => 8d10(2,2,2,4,6,7,8,10)=3
+#     [8sx7] => 8d10(3,4,4,5,5,9,10,10)+2=5
+(num)s(target): exalted(num, target)
+(num)sx(target): exaltedd(num, target)
+
+# Compare a die roll against a target number, showing the amount exceeded/missed.
+# Use vs(attack, defense) if the defense is a plain number, and
+# vsr(attack, defense) if the defense is a die roll that you want to show separately.
+# Examples: 
+#     [vs(5s7, 3)] => 5d10(3,7,8,9,9)=4:"success by 1"
+#     [vs(5s9, 3)] => 5d10(1,1,3,6,6)=0:"critical":"fail by 3",
+vsText(attack, defense): if(attack >= defense, "success by {val(attack-defense)}", "fail by {val(defense-attack)}")
+vs(attack, defense): attack+vsText(attack, defense)
+vsr(attack, defense): vsText(attack, defense), attack, defense
+
+# Dynamically set modifiers - don't change these in the sheet, use the rebinding
+# prefix definitions below.
+poolMod: internalBonus - multiAttackPenalty
+multiAttackPenalty: 0 # seeMultiAttack and AttackTargets below.
+
+# Apply an internal bonus (or penalty if negative) to the following expression,
+# adding or subtracting dice from the dice pool. Example:
+#    Punch: 5sx7
+#    internal3 Punch => rolls 8sx7
+internalBonus: 0
+i(N): with(internalBonus=internalBonus+N, $)
+
+# Apply an external bonus (or penalty if negative) to the following expression,
+# adding or subtracting successes from the result.
+#    Punch: 5sx7
+#    ex3 Punch => rolls 5sx7, then adds 3 to the number of successes
+#
+# You can combine internal and external bonuses:
+#   in3 external2 Punch => rolls 8sx7 + 2
+externalMod: externalBonus
+externalBonus: 0
+e(N): with(externalBonus=externalBonus+N, $)
+
+# Set the target number for to the following expression.
+# This should be used rarely unless Sidereals are involved.
+# Target6 roll6 => rolls six dice with 6s counting as successes
+targetNumber: 7
+t(N): with(targetNumber=N, $)
+
+# Calculations for resolving multiple attacks, setting multiAttackPenalty appropriately
+# for the following expression. (It reduces the dice pool size by the number of attacks,
+# and increases that penalty by one for each attack after the first one).
+#
+# When making attacks, use either of these two forms as a prefix, followed by the
+# attack expressions it should modify. Each roll result is marked with a target
+# identifier ("#1", "#2" etc., or the target name if using the second form).
+#
+# Examples:
+#  [MultiAttack4 Smash]
+#   => 4d10(5,8,9,10)+1=4:"#1", 3d10(3,10,10)+2=4:"#2"]
+#  [AttackTargets(("Wolf A", "Wolf B", "Wolf C")) Smash]
+#   => 3d10(1,1,9)=1:"#1":"Wolf a", 2d10(4,7)=1:"#2":"Wolf b", d10(7)=1:"#3":"Wolf c"
+#
+MultiAttack(num): repeat(num, with(multiAttackPenalty=_n+_i, $) + "#{_i+1}")
+AttackTargets(targets): map(with(multiAttackPenalty=_n+_i, $) + _ + "#{_i+1}", targets)
+
+# Basic rolls
+roll(dice): exaltedd(dice, targetNumber)
+rolldmg(dice): exalted(dice, targetNumber)
+
+# Base statistics. Override in character sheet.
+# Attributes
+#Attributes must be set in each Character Sheet
+
+#Advantages If no essence is specified in Character Sheet Essence:0 wil be set for calculations.
+Essence:0
+
+
+#JoinBattle = Initiative
+jB: joinBattle: roll(Wit + Awareness)
+
+# Close combat weapon template
+wName; wAbility; wSpeed; wAcc; wDmg; wDmgType; wDefense; wRate; wOverwhelming
+
+# Close combat weapon examples
+withPunch: with(wName="Punch", wAbility=MartialArts, wSpeed=5, wAcc=1, wDmg=0, wDmgType="B", wDV=2, wRate=3, wOverwhelming=0, $)
+
+withKick: with(wName="Kick", wAbility=MartialArts, wSpeed=5, wAcc=0, wDmg=3, wDmgType="B", wDV=-2, wRate=2, wOverwhelming=0, $)
+
+withClinch: with(wName="Clinch", wAbility=MartialArts, wSpeed=6,wAcc=0, wDmg=0, wDmgType="B", wDV=0, wRate=1, wOverwhelming=0, $)
+
+#MagicObjects Bonus
+obDmg=0
+#withnoBracers: with(oName="noBracers", obDod=0, obDmg=0, $)
+
+
+# Weapon Attack roll
+attack: roll(wAttribute + wAbility + wAcc) + "{wName} Attack, damage {wDmgType}"
+attackDV(DV): vs(attack,DV) + "{wName} Attack, damage {wDmgType}"
+wAttribute: Dex
+
+# Damage helper functions
+rawDmg(extraSuc): Str + wDmg + obDmg +extraSuc 
+printRawDmg(raw): "{raw}{wDmgType} raw damage"
+printDmg(raw, afterSoak, dmgRoll): dmgRoll + "{printRawDmg(raw)}, {afterSoak}{wDmgType} dice after soak, {dmgRoll}{wDmgType} health levels of damage"
+
+# Damage roll
+damage(extraSuc, hardness, soak): with(raw=rawDmg(extraSuc), if(hardness >= raw, "{printRawDmg(raw)}. Absorbed by hardness", with(dmgDice=rawDmg(extraSuc) - soak, if(dmgDice < Essence, printDmg(raw, dmgDice, rolldmg(min(raw, max(Essence, wOverwhelming)))), printDmg(raw, dmgDice, rolldmg(dmgDice))))))
+#Armors: B=Bashing L=Lethal A=Aggravated 
+# Armor template
+aName; aSoakB; aSoakL; aSoakB; aMob; aFatigue
+# Armor examples
+#Specify in Character Sheet DEFAULT Armor
+withoutArmor: with(aName="outArmor", aSoakB=0, aSoakL=0, aSoakA=0, aHardness=0, aMob=0, aFatigue=0, $)
+
+#Shield
+# Shield template
+sName; sDVclose; sDVrange; sMob:0; sFatigue
+#Specify in Character Sheet Default Shield
+withoutShield: with(sName="outShield", sDVclose=0, sDVrange=0, sMob=0, sFatigue=0, $)
+
+#Defenses
+#Soak for Mortals Override in Character Sheet for Exalted ans Supernaturals
+SoakB: (Sta + aSoakB)
+SoakL: aSoakL
+SoakA: aSoakA
+#PiercingSoak
+pSoakB: Sta+aSoakB/2
+pSoakL: aSoakL/2
+pSoakA: aSoakL/2
+
+#Defence Value
+ExaltedRounding: 0 # Overwrite in Character sheet to 1 for Exalted characters so that fractions get rounded up.
+ExRoundUp(N, M): (N + ExaltedRounding)/M 
+
+# DVinfo: Usefull Info for calculating DV manually
+DVinfo: "Natural DV: (Dex {Dex} + Essence {Essence})/2 + Shield Bonus {sDVclose} in Close Combat or {sDVrange} for ranged Attack - Mobilitie of {aMob}"
+
+NaturalDV: ExRoundUp(Dex+Dodge+Essence, 2)
+#CalcDV calculates DV adding Temporary Modifiers to Dexterity, Dodge or to the DV itself. Example To add 2 to Dex and 4 to Dodge and -3
+calcDV(DexDodgeMod): ExRoundUp(Dex+Dodge+Essence+DexDodgeMod, 2)
+cDV: ExRoundUp(Dex+Dodge+Essence, 2) - sMob - aMob
+rDV:  ExRoundUp(Dex+Dodge+Essence, 2) - sMob - aMob
+
+cPDV: (Dex + wAbility + wDV)/2 + sDVclose
+rPDV: (Dex + wAbility + wDV)/2 + sDVrange
+
+
+#AbilityChecks
+#[aCheck(Dex+Stealth,8)]rolls Dex+Stealth and 8Dice and compares them. 
+aCheck(Attacker,Defender): vsr(roll(Attacker),roll(Defender))
+
+#Knockdown and Knockback Check
+kdDefense: max(Dex, Sta) + max(Athletics, Resistance)
+kdCheck(raw): if(raw>Sta+Resistance, with(kdRoll=vs(roll(kdDefense),2), kdRoll + if(kdRoll<2, "Knocked down or knocked back {raw/3} yards", "Resisted knockdown")), "Not enough raw damage for knockdown")
+
+#Stunning Check
+sCheck(dmgTaken): if(dmgTaken>Sta, with(stunRoll=vs(roll(Sta+Resistance), dmgTaken-Sta), stunRoll + if(stunRoll<(dmgTaken-Sta), "-2 dice on non-reflexive rolls until attacker's next action", "Resisted stun")), "Not enough damage to stun")
+
+#FatigueCheck
+fCheck: FatigueCheck: with(FCroll=roll(Sta+Resistance), if(FCroll<(sFatigue+aFatigue), FCroll"Check Fail -1 Internal penaltie to all actions for Fatigue: {sFatigue+aFatigue}", FCroll"Check Resisted for Fatigue: {sFatigue+aFatigue} "))
+
+# End of template.
+
+----------------------------------------------------------
+Name: CharacterName ; Caste: Zenith
+
+_template: ExaltedTemplate
+# Optionally, create a blip like this one for each character, referring to the shared template.
+#Replace the "orange" values for PC stats.
+
+
+#-------------------------------------Attributes--------------------------------------------
+Str: 5; Dex: 3 ; Sta: 5 ;         Cha: 5 ; Man; 2 ; App; 2 ;        Per: 2 ; Int: 2 ; Wit: 5
+
+#--------------------------------------Abilities----------------------------------------------
+Melee: 5 ;              Archery: 0 ;           MartialArts: 0 ;    Throw: 0 ;          War: 3
+Integrity: 3 ;           Performance: 1 ;   Presence: 3 ;      Resistance: 5 ;   Survival: 2
+Athletics: 3 ;         Awareness: 1 ;     Dodge: 3+obDod ;Larceny: 0 ;        Stealth: 0
+Craft: 0 ;               Investigation: 0 ;     Lore : 2 ;             Medicine : 0 ;      Occult : 2
+Bureaucracy: 0 ;  Linguistic: 1 ;          Ride : 0 ;             Sail: 0 ;               Socialize ; 0
+
+#----------------------------------------Virtues----------------------------------------------
+Compassion: 1 ; Conviction: 1 ; Temperance: 5 ; Valour: 3
+
+#----------------------------------------Willpower----------------------------------------- 
+                          Will: 8
+                                         Essence: 5
+
+#-------------------------------------------Health---------------------------------------------
+# 0/-1/-1/-2/-2/-4/Inc
+#LimitBreak: 0
+
+#--------------------------------------Equipment-------------------------------------------
+
+#Overwrite with you default Equipment
+DEFAULTS:: withoutArmor withGrandGrimcleaver withoutShield withOriStoneBracers
+
+#Armor
+withSolarPlate : with(aName="SolarPlate", aSoakB=10, aSoakL=10, aSoakA=10, aMob=1, aFatigue=3, aHardness=2, $)
+
+
+#Shield
+withTargetShield: with(sName="TargetShield", sDVclose=1 , sDVrange=2, sMob=1, sFatigue=1, $)
+
+withSolarShield: with(sName="SolarShield", sDVclose=1 , sDVrange=3, sMob=0, sFatigue=0, $)
+
+
+# Weapons
+
+withGrandGrimcleaver: with(wName="GrandGrimcleaver", wAbility==Melee, wAcc=3, wDmg=14, wDV=-1, wRate=3, wSpeed=5, wRange=0, wTags="O", wDmgType="L", wOverwhelming=4, $)
+
+wAttribute: Dex #To attack with strenghth
+#Others
+withOriStoneBracers: with(oName="OriStoneBracers", obDod=3 , obDmg=2, $)
+
+#Defenses
+
+ExaltedRounding: 1 #Dont Modify this expresion, its for rounding up the DV
+#This Overrides ExaltedTemplate
+SB: SoakB: Sta + aSoakB
+SL: SoakL: (Sta / 2) + aSoakL
+SA: SoakA: aSoakA 
+#PiercingSoak
+pSoakB: Sta+(aSoakB / 2)
+pSoakL: (Sta / 2) +(aSoakL/2)
+pSoakA: aSoakA/2
+
+EssPersonal: ((Essence * 3) + Will)
+EssPeripherical:((Essence * 7) + Will + Compassion + Conviction + Temperance + Valour)
+
+----------------------------------------------------------
+Name: DM
+
+_template: "ExaltedTemplate"
+#This Template was written by Klaus, many Thxs for his Generous Work
+#Its Intended to have some notes and NPC the GM may use
+_secret: true # hide rolls from players
+
+# Attributes and Abilities for NPCs and monsters. You don't need to define all attributes,
+# only those used for the attack and defense rolls you are making.
+#
+# Use these as prefixes for attacks and rolls defined in the template, for example:
+#   [DM: NPCOne withKnife attack] => =4:"Knife Attack, damage L"
+NPCOne: with(Dex=4, Str=3, Sta=2, Per=3, Awareness=2, Stealth=3, Melee=4, Resistance=2, Athletics=1 , MartialArts=2, Essence=1,DV=4,PDV=4, $)
+NPCTwo: with(Dex=1, Str=1, Melee=3, MartialArts=2, $)
+
+# Weapons - these are in addition to those defined in the template (withKick, withPunch, ...)
+withKnife: with(wName="Knife", wAbility==Melee, wAcc=2, wDmg=4, wDV=0, wRate=3, wSpeed=4, wRange=0, wTags="Piercing", wDmgType="L", $)
+
+--- seed 2 -------------------------------------------------------
+[DM:: NPCOne withKnife attack] #% Knife Attack, damage L
+[NPCTwo withKick attack] #% Kick Attack, damage B
+
+--- seed 2 -------------------------------------------------------
+[CharacterName:: attack] #% GrandGrimcleaver Attack, damage L
+[withGrandGrimcleaver attack] #% GrandGrimcleaver Attack, damage L
+[kdCheck(10)] #% Not enough raw damage for knockdown
+[kdCheck(20)] #% "Knocked down or knocked back 6 yards":"fail by 1"
+[sCheck(15)] #% "Resisted stun":"success by 0"
+[sCheck(15)] #% "-2 dice on non-reflexive rolls until attacker's next action":"fail by 2"
+[fCheck] #% Check Resisted for Fatigue: 0
+
+----------------------------------------------------------
+[DM:: NPCOne withKnife attack] #% Knife Attack, damage L
