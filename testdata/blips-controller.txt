@@ -8,10 +8,12 @@ DEFAULTS::
 
 dd:Dagger:d4+5
 Other: 42
+Str: 9; Dex: 3 ; Sta: 8 ; Cha: 5 ; Man: 2 ; App: 2 ; Per: 2 ; Int: 2 ; Wit: 5 
 
 --------------------------------------------------
 Verify that the empty DEFAULTS:: doesn't interfere with remaining lines
 [Other] #% 42
+[Wit] #% 5
 
 --------------------------------------------------
 Name: Test
