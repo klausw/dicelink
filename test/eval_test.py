@@ -7,6 +7,7 @@ import eval
 import random
 import logging
 import re
+import os
 
 #from google.appengine.ext import db
 
@@ -155,6 +156,7 @@ tests = [
     ('blast d20, "orc 1", "orc 2" + 2, "orc 3"', '(d20(1)=1:"orc 1", d20(10)+2=12:"orc 2", d20(15)=15:"orc 3")'),
     ('maybeMax d10+d6', 13),
     ('useMax maybeMax d10+d6', 16),
+    ('maybeMax, useMax maybeMax, maybeMax', 0),
 
     # everything after this doesn't roll dice, order doesn't matter.
     ('Hometown', '="New York"'),
@@ -300,5 +302,6 @@ class EvalTest(unittest.TestCase):
     self.assertEqual(bad, 0, 'FAILING TESTS')
 
 if __name__ == '__main__':
-  #logging.getLogger().setLevel(logging.DEBUG)
+  if 'DEBUG' in os.environ:
+    logging.getLogger().setLevel(logging.DEBUG)
   unittest.main()
