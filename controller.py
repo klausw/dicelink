@@ -226,7 +226,7 @@ def get_expansions(expr, char, template):
 	  if expand:
 	    expand = expand.replace('$', '')
 	    expand += '(%s)' % m.group(2)
-      logging.info('expansion: w=%s, ex=%s', repr(ex.group()), repr(expand))
+      #logging.info('expansion: w=%s, ex=%s', repr(ex.group()), repr(expand))
       if expand:
 	expand = expand.replace('$', '')
 	expr = expr[:ex.start()] + expand + expr[ex.end():]
