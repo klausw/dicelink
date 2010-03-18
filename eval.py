@@ -125,7 +125,7 @@ class ParseError(Exception):
   def __init__(self, msg):
     self.msg = msg
   def __str__(self):
-    return 'ParseError: %s' % self.msg
+    return self.msg
 
 MAX_ROLLS=2000
 MAX_OBJECTS = 900 # <1000, or Python breaks first on recursion
@@ -871,6 +871,8 @@ def ParseExpr(expr, sym, parent_env):
 
   def Reduce(rhs, op):
     # must not modify constants such as RESULT_NIL
+    if not result:
+      raise ParseError('Missing operand in expression "%s"' % expr)
     lhs = copy.deepcopy(result.pop())
 
     if op == ',':

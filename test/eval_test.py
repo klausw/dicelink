@@ -268,7 +268,7 @@ class EvalTest(unittest.TestCase):
 	result_val = result.value()
 	result_str = str(result)
       except eval.ParseError, e:
-	result_str = str(e)
+	result_str = e.__class__.__name__ + ': ' + str(e)
       status='FAIL'
       if hasattr(expected, 'iterfind'):
 	if expected.search(str):

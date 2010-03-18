@@ -52,7 +52,7 @@ EXPR_RE = re.compile(r'''
   \[
   (?:        # "CharacterName:", optional
     \s*
-    (?P<name> [^]:]* )
+    (?P<name> [^]:=]* )
     (?P<sep> :+)
   )?
   \s*
@@ -61,9 +61,15 @@ EXPR_RE = re.compile(r'''
   ''', re.X)
 
 SPECIAL_EXPR_RE = re.compile(r'^\[ \! (.*) \]$', re.X)
-PARENS_RE = re.compile(r'\(.*\)')
+PARENS_RE = re.compile(r'\([^"]*?\)')
 WORD_RE = re.compile(ur'([\w\u0080-\uffff]+)')
 STRIKETHROUGH_RE = re.compile(r'\/\* (.*?) \*\/', re.X)
+
+def already_evaluated(expr):
+  expr_outside_parens = PARENS_RE.sub('', expr)
+  if '=' in expr_outside_parens:
+    return True
+  return False
 
 def eval_expr(txt, replacer, storage):
   # calls replacer(start, end, texts) => offset_delta
@@ -73,8 +79,7 @@ def eval_expr(txt, replacer, storage):
     out_lst = []
     log_info = []
     expr = mexpr.group('expr').strip()
-    expr_outside_parens = PARENS_RE.sub('', expr)
-    if '=' in expr_outside_parens or 'Error:' in mexpr.group():
+    if already_evaluated(expr) or 'Error:' in mexpr.group():
       continue
     charname = None
     char = None
@@ -278,8 +283,9 @@ def handle_expr(sym, expr):
       out += markup(detail)
       out.append([value, ('style/fontWeight', 'bold')])
       log.append(detail + value)
-  except eval.ParseError, e:
-    out.append([e.__str__(), ('style/color', 'red')])
-    log.append(e.__str__())
+  except (eval.ParseError, ValueError, TypeError, IndexError), e:
+    txt = e.__class__.__name__ + ': ' + e.__str__()
+    out.append([txt, ('style/color', 'red')])
+    log.append(txt)
   return out, log
 
