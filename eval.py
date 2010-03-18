@@ -672,12 +672,15 @@ def fn_list(sym, env, *args):
     items.append(ParseExpr(arg, sym, env))
   return ResultList(items)
 
-def fn_nth(sym, env, num, expr):
-  num = ParseExpr(num, sym, env).value()
+def fn_nth(sym, env, numexpr, expr):
+  num = ParseExpr(numexpr, sym, env).value()
   arg = ParseExpr(expr, sym, env)
   if not arg.is_list:
     raise ParseError('nth(%s): arg is not a list or dice roll' % expr)
-  return arg.items()[num]
+  try:
+    return arg.items()[num]
+  except IndexError, e:
+    raise ParseError("nth(%s, %s): bad index %s, must be 0..%d" %(numexpr, expr, num, len(arg.items())-1))
 
 def fn_range(sym, env, e1, e2=None, e3=None):
   args = [ParseExpr(e1, sym, env).value()]
