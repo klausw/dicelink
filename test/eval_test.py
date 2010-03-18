@@ -233,6 +233,9 @@ tests = [
     ('with(X=Enh, withEnh(7) X)', 2),
     ('with(X==Enh, withEnh(7) X)', 7),
     ('with(X==Enh, withEnh(X) X)', 2),
+    ('with(L=("a", "b", "c", "a"), count(=="a", L))', 2),
+    ('with(L=("a", "b", "c", "a"), pick(=="a", L))', '("a", /*0*/, /*0*/, "a")'),
+    ('with(L=("a", "b", "c", "a"), filter(=="a", L))', '("a", "a")'),
 
     # Expected errors
     ('10d6b7', 'ParseError'),

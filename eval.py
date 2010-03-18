@@ -334,13 +334,6 @@ def DynEnv(env, key, val):
 def Val(expr, sym, env):
   return ParseExpr(expr, sym, env).value()
 
-def ValOrString(expr, sym, env):
-  val = ParseExpr(expr, sym, env)
-  if val.is_numeric():
-    return val.value()
-  else:
-    return val.publicval()
-
 def fn_repeat(sym, env, num, fexpr):
   ntimes = ParseExpr(num, sym, env).value()
   if ntimes <= 0:
@@ -446,19 +439,6 @@ def fn_d(sym, env, num_dice, sides):
 def fn_explode(sym, env, fexpr):
   return ParseExpr(fexpr, sym, DynEnv(env, 'explode', True))
 
-RELOPS = {
-  '==': lambda x, y: x == y,
-  '!=': lambda x, y: x != y,
-
-  '<': lambda x, y: x < y,
-  '<=': lambda x, y: x <= y,
-
-  '>': lambda x, y: x > y,
-  '>=': lambda x, y: x >= y,
-}
-
-RELOP_RE = re.compile(r'\s* ([=<>!]+) \s*', re.X)
-
 def details_highlight(ret, all):
   for item in all._items:
     if item.value() == ret.value():
@@ -515,9 +495,12 @@ def fn_pick(sym, env, filter, fexpr):
   if not all.is_list:
     raise ParseError('pick(%s): arg is not a list or dice roll' % fexpr)
   pred = predicate(sym, env, filter)
-  return filter_list(all, lambda i, item: pred(item.value()))
+  return filter_list(all, lambda i, item: pred(item))
 
-  raise ParseError('not implemented')
+def fn_filter(sym, env, filter, fexpr):
+  lst = fn_pick(sym, env, filter, fexpr)
+  lst._items = [x for x in lst._items if x.is_numeric() or x.publicval()]
+  return lst
 
 def fn_slice(sym, env, fexpr, start_expr, end_expr=None):
   all = ParseExpr(fexpr, sym, env)
@@ -549,6 +532,19 @@ def fn_bottom(sym, env, num, fexpr):
   all = fn_sort(sym, env, fexpr)
   return fn_slice(sym, env, all, ParseExpr(num, sym, env).value())
 
+RELOPS = {
+  '==': lambda x, y: x.value() == y.value() and x.publicval() == y.publicval(),
+  '!=': lambda x, y: x.value() != y.value() or x.publicval() != y.publicval(),
+
+  '<': lambda x, y: x.value() < y.value(),
+  '<=': lambda x, y: x.value() <= y.value(),
+
+  '>': lambda x, y: x.value() > y.value(),
+  '>=': lambda x, y: x.value() >= y.value(),
+}
+
+RELOP_RE = re.compile(r'\s* ([=<>!]+) \s*', re.X)
+
 def relation(sym, env, expr):
   m = RELOP_RE.search(expr)
   if not m:
@@ -563,7 +559,7 @@ def predicate(sym, env, expr):
   #logging.debug('rhs=%s', rhs)
   if lhs:
     raise ParseError('Bad predicate, unexpected "%s"' % lhs)
-  thresh = ValOrString(rhs, sym, env)
+  thresh = ParseExpr(rhs, sym, env)
   return lambda x: op(x, thresh)
 
 def fn_reroll_if(sym, env, filter, fexpr):
@@ -572,7 +568,7 @@ def fn_reroll_if(sym, env, filter, fexpr):
 
 def fn_count(sym, env, filter, fexpr=None):
   if fexpr is None:
-    pred = lambda x: True
+    pred = lambda x: x.is_numeric()
     fexpr = filter
   else:
     pred = predicate(sym, env, filter)
@@ -581,7 +577,7 @@ def fn_count(sym, env, filter, fexpr=None):
     raise ParseError('cannot count non-list "%s"' % fexpr)
   ret = 0
   for item in val.items():
-    if item.is_numeric() and pred(item.value()):
+    if pred(item):
       ret += 1
   return Result(ret, val.detail(), val.flags, is_constant=False)
   #return ParseExpr(fexpr, sym, DynEnv(env, 'count', pred))
@@ -734,14 +730,16 @@ FUNCTIONS = {
   'cond': fn_cond,
   'lval': fn_lval,
   ### undocumented
-  'conflicttest': fn_conflicttest,
   'reroll_if': fn_reroll_if,
+  'filter': fn_filter,
   'list': fn_list,
   'nth': fn_nth,
   'map': fn_map, # binds _ and _i
   #'range': fn_range, # needs sanity check for ranges!
   'sval': fn_sval,
   'flag': fn_flag,
+  ### intentionally undocumented
+  'conflicttest': fn_conflicttest,
   ### new, document!
   # func $ args
 
