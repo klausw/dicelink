@@ -236,6 +236,7 @@ tests = [
     ('with(L=("a", "b", "c", "a"), count(=="a", L))', 2),
     ('with(L=("a", "b", "c", "a"), pick(=="a", L))', '("a", /*0*/, /*0*/, "a")'),
     ('with(L=("a", "b", "c", "a"), filter(_=="a", L))', '("a", "a")'),
+    ('with(L=("a", "b", "c", "a"), filter(=="a", L))', '("a", "a")'),
     ('with(L=("a", "b", "c", "a"), len(L))', 4),
     ('with(L=("a", "b", "c", "a"), len(pick(=="a", L)))', 2),
     ('with(L=("a", "b", "c", "a"), count(=="a", L))', 2),

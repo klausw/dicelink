@@ -362,12 +362,12 @@ def map_setup(sym, env, fexpr, list):
       all = [val]
   else:
     all = [ParseExpr(x, sym, env) for x in list]
-  if not '_' in fexpr:
-    fexpr = '(%s)+_' % fexpr
   return fexpr, all
 
 def fn_map(sym, env, fexpr, *list):
   fexpr, all = map_setup(sym, env, fexpr, list)
+  if not '_' in fexpr:
+    fexpr = '(%s)+_' % fexpr
   out = []
   for i, item in enumerate(all):
     new_env = {
@@ -379,6 +379,9 @@ def fn_map(sym, env, fexpr, *list):
 
 def fn_filter(sym, env, fexpr, *list):
   fexpr, all = map_setup(sym, env, fexpr, list)
+  if not '_' in fexpr:
+    # assume it's a predicate
+    fexpr = '_ %s' % fexpr
   out = []
   for i, item in enumerate(all):
     new_env = {
