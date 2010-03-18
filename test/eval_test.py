@@ -235,7 +235,13 @@ tests = [
     ('with(X==Enh, withEnh(X) X)', 2),
     ('with(L=("a", "b", "c", "a"), count(=="a", L))', 2),
     ('with(L=("a", "b", "c", "a"), pick(=="a", L))', '("a", /*0*/, /*0*/, "a")'),
-    ('with(L=("a", "b", "c", "a"), filter(=="a", L))', '("a", "a")'),
+    ('with(L=("a", "b", "c", "a"), filter(_=="a", L))', '("a", "a")'),
+    ('with(L=("a", "b", "c", "a"), len(L))', 4),
+    ('with(L=("a", "b", "c", "a"), len(pick(=="a", L)))', 2),
+    ('with(L=("a", "b", "c", "a"), count(=="a", L))', 2),
+    ('with(L=list(("a", 11), ("b", 12)), len(L))', 2),
+    ('with(L=list(("a", 11), ("b", 12)), nth(1, nth(0, filter(nth(0, _)=="a", L))))', 11),
+    ('with(L=list(("a", 11), ("b", 12)), filter(nth(0, _)=="a", L))', 11),
 
     # Expected errors
     ('10d6b7', 'ParseError'),

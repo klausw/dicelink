@@ -347,7 +347,7 @@ def fn_repeat(sym, env, num, fexpr):
     out.append(eval_with(sym, env, new_env, fexpr))
   return ResultList(out)
 
-def fn_map(sym, env, fexpr, *list):
+def map_setup(sym, env, fexpr, list):
   if len(list) == 0:
     args, unused_rest = first_paren_expr(fexpr)
     if len(args) <= 2:
@@ -364,6 +364,10 @@ def fn_map(sym, env, fexpr, *list):
     all = [ParseExpr(x, sym, env) for x in list]
   if not '_' in fexpr:
     fexpr = '(%s)+_' % fexpr
+  return fexpr, all
+
+def fn_map(sym, env, fexpr, *list):
+  fexpr, all = map_setup(sym, env, fexpr, list)
   out = []
   for i, item in enumerate(all):
     new_env = {
@@ -371,6 +375,18 @@ def fn_map(sym, env, fexpr, *list):
       '_i': i,
       '_n': len(all)}
     out.append(eval_with(sym, env, new_env, fexpr))
+  return ResultList(out)
+
+def fn_filter(sym, env, fexpr, *list):
+  fexpr, all = map_setup(sym, env, fexpr, list)
+  out = []
+  for i, item in enumerate(all):
+    new_env = {
+      '_': item,
+      '_i': i,
+      '_n': len(all)}
+    if eval_with(sym, env, new_env, fexpr).value():
+      out.append(item)
   return ResultList(out)
 
 def fn_max(sym, env, *args):
@@ -496,11 +512,6 @@ def fn_pick(sym, env, filter, fexpr):
     raise ParseError('pick(%s): arg is not a list or dice roll' % fexpr)
   pred = predicate(sym, env, filter)
   return filter_list(all, lambda i, item: pred(item))
-
-def fn_filter(sym, env, filter, fexpr):
-  lst = fn_pick(sym, env, filter, fexpr)
-  lst._items = [x for x in lst._items if x.is_numeric() or x.publicval()]
-  return lst
 
 def fn_slice(sym, env, fexpr, start_expr, end_expr=None):
   all = ParseExpr(fexpr, sym, env)
@@ -734,10 +745,10 @@ FUNCTIONS = {
   'lval': fn_lval,
   ### undocumented
   'reroll_if': fn_reroll_if,
-  'filter': fn_filter,
   'list': fn_list,
   'nth': fn_nth,
   'map': fn_map, # binds _ and _i
+  'filter': fn_filter, # binds _ and _i, takes a boolean expr
   #'range': fn_range, # needs sanity check for ranges!
   'sval': fn_sval,
   'flag': fn_flag,
