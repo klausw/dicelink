@@ -53,6 +53,9 @@ sym = {
     'sBasic$': eval.Function(['Stat'], 'with(Difficulty=Difficulty+Stat/2,$)'), 
     'dbonus$': eval.Function(['n'], 'with(Difficulty=Difficulty+n, $)'),
     'blast': eval.Function([], 'map($)'),
+    'MaxFlag': 0,
+    'maybeMax': eval.Function([], 'if(MaxFlag, max($), $)'),
+    'useMax': eval.Function([], 'with(MaxFlag=1, $)'),
   }
 
 env = {
@@ -150,6 +153,8 @@ tests = [
     ('6d6*3 "cut"', '6d6(5,6,2,4,3,5)*3=75'),
     ('d6+2+(d4+1)*2+4', 'd6(6)+(d4(3)+1)*2+6=20'),
     ('blast d20, "orc 1", "orc 2" + 2, "orc 3"', '(d20(1)=1:"orc 1", d20(10)+2=12:"orc 2", d20(15)=15:"orc 3")'),
+    ('maybeMax d10+d6', 13),
+    ('useMax maybeMax d10+d6', 16),
 
     # everything after this doesn't roll dice, order doesn't matter.
     ('Hometown', '="New York"'),

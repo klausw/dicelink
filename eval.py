@@ -828,9 +828,8 @@ def eval_fname(sym, env, fname, args, trailexpr):
   if func and isinstance(func, Function):
     # FIXME, duplication
     consume = 0
-    dollar = func.expansion.find('$')
-    if dollar >= 0:
-      func = Function(func.proto, func.expansion[:dollar] + trailexpr + func.expansion[dollar+1:])
+    if '$' in func.expansion:
+      func = Function(func.proto, func.expansion.replace('$', trailexpr))
       #logging.debug('magic function: %s', repr(func.expansion))
       consume = len(trailexpr)
     return (func.eval(sym, env, args), consume)
@@ -1037,8 +1036,7 @@ def ParseExpr(expr, sym, parent_env):
 	# is it a magic symbol?
 	expansion = LookupSym(matched, sym)
 	if expansion and isinstance(expansion, basestring): # FIXME, hack
-	  dollar = expansion.find('$')
-	  if dollar < 0:
+	  if not '$' in expansion:
 	    raise ParseError('Symbol "%s" is not magic (no $ in expansion), missing operator before "%s" in "%s"?' % (matched, expr[match_end:], expr))
 	  # actual magic happens below
 	else:
@@ -1062,8 +1060,7 @@ def ParseExpr(expr, sym, parent_env):
 	  if not isinstance(func, Function):
 	    raise ParseError('Symbol "%s" is not a function, missing operator before "%s" in "%s"?' % (matched, expr[match_end:], expr))
 
-	  dollar = func.expansion.find('$')
-	  if dollar >= 0:
+	  if '$' in func.expansion:
 	    #logging.debug('magic function: %s, args=%s', repr(func.expansion), repr(args))
 	    expansion, offset = eval_fname(sym, env, fname, args, expr[start + match_end:])
 	    match_end += offset
@@ -1071,11 +1068,10 @@ def ParseExpr(expr, sym, parent_env):
 	    expansion = func.eval(sym, env, args)
       if not isinstance(expansion, Result):
 	if expansion and isinstance(expansion, basestring): # FIXME, hack
-	  dollar = expansion.find('$')
-	  if dollar >= 0:
+	  if '$' in expansion:
 	    # magic symbol
 	    marg = expr[match_end:]
-	    expansion = expansion[:dollar] + '(' + marg + ')' + expansion[dollar+1:]
+	    expansion = expansion.replace('$', '(' + marg + ')')
 	    match_end = len(expr)
         expansion = ParseExpr(expansion, sym, env)
       DEBUG('symbol %s: %s', matched, expansion)
