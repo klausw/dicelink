@@ -6,6 +6,7 @@ import codecs
 import logging
 import random
 import re
+import glob
 
 import controller
 import charstore
@@ -47,7 +48,9 @@ class AnsiDoc(object):
 
 BLIP_START_RE = re.compile(r'^ --- [-\s]* (.*?) [-\s]* $', re.X)
 
-def BlipIterator(context, files):
+def BlipIterator(context, files=None):
+  if files is None:
+    files = glob.glob('testdata/blips-*')
   for testfile in files:
     if '-gae' in testfile and not GAE_AVAILABLE:
       logging.info('no GAE storage, skipping file %s', testfile)

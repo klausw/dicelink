@@ -32,6 +32,14 @@ x: 3 "otheruser"
 --- modifier firstuser, waveId testWave2, blipId # ---------------------------
 # Use by original creator in other wave, should still show new value
 [char: x] #% 3:"otheruser"
+
+--- modifier otheruser, waveId testWave2, blipId # ---------------------------
+# Use by other user in other wave, should not be visible
+[char: x] #% not found
+
+--- modifier firstuser, waveId testWave2, blipId # ---------------------------
+# Use by original creator in other wave, should still show new value
+[char: x] #% 3:"otheruser"
 # Clean up
 [!clear char] #% cleared: 1
 

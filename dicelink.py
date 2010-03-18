@@ -21,7 +21,7 @@ import charstore_gae
 
 import sys
 sys.path.append('test')
-import controller_test
+import mockblip
 
 FROM_FULL_URL_RE = re.compile(r'restored:wave:([^,]*)')
 
@@ -214,12 +214,12 @@ class Roll(webapp.RequestHandler):
 
 class RunTests(webapp.RequestHandler):
   def get(self):
-    context = controller_test.MakeContext()
-    for blip in controller_test.BlipIterator(context):
+    context = mockblip.MakeContext()
+    for blip in mockblip.BlipIterator(context):
       hdr = '<small style="color: #888888">creator=%s, modifier=%s, waveId=%s, waveletId=%s, blipId=%s</small><br>' % (
 	context['creator'], context['modifier'], context['waveId'], context['waveletId'], context['blipId'])
       self.response.out.write(hdr.encode('utf-8'))
-      out = controller_test.doBlip(blip, context)
+      out = mockblip.doBlip(blip, context)
       out = out.replace('\n', '<br>\n')
       self.response.out.write(out.encode('utf-8'))
       self.response.out.write('<hr>')
