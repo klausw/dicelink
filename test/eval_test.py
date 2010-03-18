@@ -55,8 +55,8 @@ sym = {
     'dbonus$': eval.Function(['n'], 'with(Difficulty=Difficulty+n, $)'),
     'blast': eval.Function([], 'map($)'),
     'MaxFlag': 0,
-    'maybeMax': eval.Function([], 'if(MaxFlag, max($), $)'),
-    'useMax': eval.Function([], 'with(MaxFlag=1, $)'),
+    'maybeMax': 'if(MaxFlag, max($), $)',
+    'useMax': 'with(MaxFlag=1, $)',
   }
 
 env = {

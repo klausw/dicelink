@@ -1001,7 +1001,8 @@ def ParseExpr(expr, sym, parent_env):
       AddOperator('+')
     DEBUG('dict: %s', ', '.join([k for k, v in m.groupdict().iteritems() if v]))
     matched = m.group(0)
-    match_end = m.end()
+    match_len = m.end()
+    DEBUG('expr object %s{{%s}}%s', expr[:start], expr[start:start+match_len], expr[start+match_len:])
     #logging.debug('expr "%s"', matched)
     dict = m.groupdict()
     if dict['dice']:
@@ -1019,7 +1020,7 @@ def ParseExpr(expr, sym, parent_env):
     elif dict['parexpr']:
       pexpr = dict['parexpr']
       args, pexpr = first_paren_expr(pexpr)
-      match_end = m.start('parexpr') + len(pexpr) + 1
+      match_len = m.start('parexpr') + len(pexpr) + 1
       ShiftVal(ParseExpr(pexpr, sym, env))
     elif dict['symbol']:
       orig_matched = matched
@@ -1031,13 +1032,13 @@ def ParseExpr(expr, sym, parent_env):
 	if ' ' in matched:
 	  sidx = matched.index(' ')
 	  matched = matched[:sidx]
-	  match_end = start + len(matched) + 1
+	  match_len = len(matched) + 1
 	
 	# is it a magic symbol?
 	expansion = LookupSym(matched, sym)
 	if expansion and isinstance(expansion, basestring): # FIXME, hack
 	  if not '$' in expansion:
-	    raise ParseError('Symbol "%s" is not magic (no $ in expansion), missing operator before "%s" in "%s"?' % (matched, expr[match_end:], expr))
+	    raise ParseError('Symbol "%s" is not magic (no $ in expansion), missing operator before "%s" in "%s"?' % (matched, expr[start+match_len:], expr))
 	  # actual magic happens below
 	else:
 	  # a(b)c(d)e style function called as a10c2e ?
@@ -1058,21 +1059,21 @@ def ParseExpr(expr, sym, parent_env):
 	      raise ParseError('Symbol "%s" or "%s" not found' % (orig_matched, matched))
 	  
 	  if not isinstance(func, Function):
-	    raise ParseError('Symbol "%s" is not a function, missing operator before "%s" in "%s"?' % (matched, expr[match_end:], expr))
+	    raise ParseError('Symbol "%s" is not a function, missing operator before "%s" in "%s"?' % (matched, expr[start+match_len:], expr))
 
 	  if '$' in func.expansion:
 	    #logging.debug('magic function: %s, args=%s', repr(func.expansion), repr(args))
-	    expansion, offset = eval_fname(sym, env, fname, args, expr[start + match_end:])
-	    match_end += offset
+	    expansion, offset = eval_fname(sym, env, fname, args, expr[start + match_len:])
+	    match_len += offset
 	  else:
 	    expansion = func.eval(sym, env, args)
       if not isinstance(expansion, Result):
 	if expansion and isinstance(expansion, basestring): # FIXME, hack
 	  if '$' in expansion:
-	    # magic symbol
-	    marg = expr[match_end:]
+	    marg = expr[start+match_len:]
 	    expansion = expansion.replace('$', '(' + marg + ')')
-	    match_end = len(expr)
+	    match_len = len(expr) - start
+	    #logging.debug('magic function: expansion=%s, marg=%s, match_len=%d, expr=%s', repr(expansion), repr(marg), match_len, expr[start:start+match_len])
         expansion = ParseExpr(expansion, sym, env)
       DEBUG('symbol %s: %s', matched, expansion)
       ShiftVal(expansion)
@@ -1100,15 +1101,15 @@ def ParseExpr(expr, sym, parent_env):
       # handle parenthesis balancing properly.
       if '(' in fexpr or '"' in fexpr:
 	args, fexpr = first_paren_expr(fexpr)
-	match_end = m.start('fexpr') + len(fexpr) + 1
+	match_len = m.start('fexpr') + len(fexpr) + 1
       else:
 	args = fexpr.split(',')
       DEBUG('args=%s', repr(args))
 
-      ret, offset = eval_fname(sym, env, fname, args, expr[start + match_end:])
+      ret, offset = eval_fname(sym, env, fname, args, expr[start + match_len:])
       if ret:
 	ShiftVal(ret)
-	match_end += offset
+	match_len += offset
       elif N_TIMES_RE.match(fname):
         ntimes = int(N_TIMES_RE.match(fname).group(1))
 	if ntimes > 100:
@@ -1118,7 +1119,7 @@ def ParseExpr(expr, sym, parent_env):
       else:
         raise ParseError('Unknown function "%s(%s)"' % (fname, ','.join(['_']*len(args))))
 
-    start += match_end
+    start += match_len
 
   # No results? Set to NIL
   if not result:
@@ -1159,4 +1160,4 @@ if __name__ == '__main__':
       result_str = str(result)
     except ParseError, e:
       result_str = str(e)
-    print expr, result_str
+    print expr, '=>', result_str
