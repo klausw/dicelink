@@ -473,7 +473,7 @@ def fn_len(sym, env, fexpr):
     raise ParseError('len(%s): arg is not a list or dice roll' % fexpr)
   ret = 0
   for item in all.items():
-    if item.is_numeric():
+    if item.is_numeric() or item.publicval():
       ret += 1
   return Result(ret, '', {})
 
@@ -568,7 +568,7 @@ def fn_reroll_if(sym, env, filter, fexpr):
 
 def fn_count(sym, env, filter, fexpr=None):
   if fexpr is None:
-    pred = lambda x: x.is_numeric()
+    pred = lambda x: x.is_numeric() or x.publicval()
     fexpr = filter
   else:
     pred = predicate(sym, env, filter)
