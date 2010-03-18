@@ -61,13 +61,19 @@ EXPR_RE = re.compile(r'''
   ''', re.X)
 
 SPECIAL_EXPR_RE = re.compile(r'^\[ \! (.*) \]$', re.X)
-PARENS_RE = re.compile(r'\([^"]*?\)')
+STRINGS_RE = re.compile(r'"[^"]*?"')
+PARENS_RE = re.compile(r'\([^()]*\)')
 WORD_RE = re.compile(ur'([\w\u0080-\uffff]+)')
 STRIKETHROUGH_RE = re.compile(r'\/\* (.*?) \*\/', re.X)
 
 def already_evaluated(expr):
-  expr_outside_parens = PARENS_RE.sub('', expr)
-  if '=' in expr_outside_parens:
+  expr = STRINGS_RE.sub('', expr)
+  while True:
+    new_expr = PARENS_RE.sub('', expr)
+    if new_expr == expr:
+      break
+    expr = new_expr
+  if '=' in expr:
     return True
   return False
 
