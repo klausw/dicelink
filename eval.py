@@ -211,10 +211,10 @@ class ResultDie(Result):
       return self.publicval()
 
 class ResultList(Result):
-  def __init__(self, items):
+  def __init__(self, items, detail=''):
     Result.__init__(self, 0, map(lambda x: x.detail(), items), {})
     self._items = items
-    self._detail = ''
+    self._detail = detail
     self._delim = ', '
     self.is_list = True
   def show_as_list(self):
@@ -240,16 +240,48 @@ class ResultMultiValue(ResultList):
     self.is_multivalue = True
 
 class ResultDice(ResultList):
-  def __init__(self, items):
-    ResultList.__init__(self, items)
+  def __init__(self, items, detail='', flags=None):
+    ResultList.__init__(self, items, detail)
     self.is_constant = False
     self._delim = ','
+    if flags is not None:
+      self.flags = flags
   def show_as_list(self):
     return False
   def detail_paren(self):
     return self.detail()
   def detail(self):
     return Result.detail(self, '(%s)' % self._delim.join([x.detailvalue() for x in self._items]))
+
+class ResultPool(ResultList):
+  def __init__(self, items, detail=''):
+    ResultList.__init__(self, items, detail)
+    self.is_constant = False
+
+  def show_as_list(self):
+    return False
+  def detail_paren(self):
+    return self.detail()
+  def value(self):
+    return 0
+  def is_numeric(self):
+    return False
+
+  def detail(self):
+    results = {}
+    for item in self._items:
+      val = item.value()
+      results[val] = results.get(val, 0)+1
+    
+    out = []
+    for val in reversed(sorted(results.keys())):
+      count = results[val]
+      if count == 1:
+	out.append(str(val))
+      else:
+	out.append('%dx%d' % (count, val))
+    return Result.detail(self, '(%s)' % self._delim.join(out))
+    
 
 def never(x):
   return False
@@ -322,18 +354,10 @@ def RollDice(num_dice, sides, env):
     if 'opt_crit_notify' in env and result >= env['opt_crit_notify']:
       flags['Critical'] = True
 
-  detail = '%sd%d(%s)' % (
-    {1:''}.get(num_dice, str(num_dice)),
-    sides,
-    ','.join(details))
-  #return Result(result, detail, flags, is_constant=False)
-  ret = ResultDice([ResultDie(x, d) for x, d in zip(dice, details)])
-  # FIXME, move to constructor
-  ret._detail = '%sd%d' % (
+  top_detail = '%sd%d' % (
     {1:''}.get(num_dice, str(num_dice)),
     sides)
-  ret.flags = flags
-  return ret
+  return ResultDice([ResultDie(x, d) for x, d in zip(dice, details)], top_detail, flags)
   
 
 N_TIMES_RE = re.compile(r'(\d+) x', re.X)
@@ -711,10 +735,13 @@ def fn_append(sym, env, listarg, *args):
 
 def fn_concat(sym, env, *args):
   all_dice = True
+  details = []
   items = []
   for arg in args:
     lval = ParseExpr(arg, sym, env)
-    if not isinstance(lval, ResultDice):
+    if isinstance(lval, ResultDice):
+      details.append(lval._detail)
+    else:
       all_dice = False
     if lval.is_list:
       items += lval.items()
@@ -722,9 +749,13 @@ def fn_concat(sym, env, *args):
       items.append(lval)
       all_dice = False
   if all_dice:
-    return ResultDice(items)
+    return ResultDice(items, '+'.join(details))
   else:
     return ResultList(items)
+
+def fn_pool(sym, env, *args):
+  ret = fn_concat(sym, env, *args)
+  return ResultPool(ret.items(), ret._detail)
 
 def fn_nth(sym, env, numexpr, expr):
   num = ParseExpr(numexpr, sym, env).value()
@@ -796,6 +827,7 @@ FUNCTIONS = {
   'reroll_if': fn_reroll_if,
   'append': fn_append,
   'concat': fn_concat,
+  'pool': fn_pool,
   #'range': fn_range, # needs sanity check for ranges!
   ### intentionally undocumented
   'conflicttest': fn_conflicttest,
