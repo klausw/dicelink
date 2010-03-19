@@ -746,15 +746,15 @@ FUNCTIONS = {
   'val': fn_val,
   'cond': fn_cond,
   'lval': fn_lval,
-  ### undocumented
-  'reroll_if': fn_reroll_if,
-  'list': fn_list,
+  'sval': fn_sval,
+  'flag': fn_flag,
   'nth': fn_nth,
   'map': fn_map, # binds _ and _i
   'filter': fn_filter, # binds _ and _i, takes a boolean expr
+  'list': fn_list,
+  ### undocumented
+  'reroll_if': fn_reroll_if,
   #'range': fn_range, # needs sanity check for ranges!
-  'sval': fn_sval,
-  'flag': fn_flag,
   ### intentionally undocumented
   'conflicttest': fn_conflicttest,
   ### new, document!
