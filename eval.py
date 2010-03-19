@@ -686,6 +686,25 @@ def fn_list(sym, env, *args):
     items.append(ParseExpr(arg, sym, env))
   return ResultList(items)
 
+def fn_append(sym, env, listarg, *args):
+  list = ParseExpr(listarg, sym, env)
+  if not list.is_list:
+    raise ParseError('append(%s): first arg is not a list or dice roll' % listarg)
+  items = copy.deepcopy(list.items())
+  for arg in args:
+    items.append(ParseExpr(arg, sym, env))
+  return ResultList(items)
+
+def fn_concat(sym, env, *args):
+  items = []
+  for arg in args:
+    lval = ParseExpr(arg, sym, env)
+    if lval.is_list:
+      items += lval.items()
+    else:
+      items.append(lval)
+  return ResultList(items)
+
 def fn_nth(sym, env, numexpr, expr):
   num = ParseExpr(numexpr, sym, env).value()
   arg = ParseExpr(expr, sym, env)
@@ -754,6 +773,8 @@ FUNCTIONS = {
   'list': fn_list,
   ### undocumented
   'reroll_if': fn_reroll_if,
+  'append': fn_append,
+  'concat': fn_concat,
   #'range': fn_range, # needs sanity check for ranges!
   ### intentionally undocumented
   'conflicttest': fn_conflicttest,

@@ -243,6 +243,8 @@ tests = [
     ('with(L=list(("a", 11), ("b", 12)), len(L))', 2),
     ('with(L=list(("a", 11), ("b", 12)), nth(1, nth(0, filter(nth(0, _)=="a", L))))', 11),
     ('with(L=list(("a", 11), ("b", 12)), filter(nth(0, _)=="a", L))', 11),
+    ('with(a=(0, 1), b=(2, 3), concat(a, b))', '(0, 1, 2, 3)=6'),
+    ('with(a=(0, 1), b=(2, 3), append(a, b))', '(0, 1, (2, 3)=5)=6'),
 
     # Expected errors
     ('10d6b7', 'ParseError'),
