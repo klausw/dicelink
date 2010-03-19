@@ -1068,6 +1068,8 @@ def ParseExpr(expr, sym, parent_env):
 	  #logging.debug('maybe-fn: fname="%s" args=%s', fname, repr(args))
 	  func = LookupSym(fname, sym)
 	  if func is None:
+	    if expr[start + match_len:][:1] == '(':
+	      raise ParseError('Missing closing parenthesis after "%s" ?' % expr)
 	    if orig_matched == matched:
 	      raise ParseError('Symbol "%s" not found' % matched)
 	    else:
@@ -1174,5 +1176,5 @@ if __name__ == '__main__':
       result_val = result.value()
       result_str = str(result)
     except ParseError, e:
-      result_str = str(e)
+      result_str = e.__class__.__name__ + ': ' + str(e)
     print expr, '=>', result_str

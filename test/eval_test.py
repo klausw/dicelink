@@ -254,6 +254,7 @@ tests = [
     ('with(x=2, x) + x', r'/ParseError: Symbol "x" not found/'),
     ('with(x=2, x, y)', r'/ParseError: Binding term "x"/'),
     ('with(X==Enh, with(Enh==X, X))', r'/ParseError: Recursive/'),
+    ('with(r=1, 2', r'/ParseError: Missing closing parenthesis/'),
   ]
 
 class EvalTest(unittest.TestCase):

@@ -73,7 +73,8 @@ def already_evaluated(expr):
     if new_expr == expr:
       break
     expr = new_expr
-  if '=' in expr:
+  logging.info('expr=%s', repr(expr))
+  if '=' in expr and not '(' in expr:
     return True
   return False
 
@@ -295,3 +296,16 @@ def handle_expr(sym, expr):
     log.append(txt)
   return out, log
 
+if __name__ == '__main__':
+  import sys
+  sys.path.append('test')
+  import eval_test
+  import mockblip
+  logging.getLogger().setLevel(logging.DEBUG)
+  eval.DEBUG_PARSER = True
+
+  context = mockblip.MakeContext()
+  for blip in sys.argv[1:]:
+    if not '[' in blip:
+      blip = '[' + blip + ']'
+    print mockblip.doBlip(blip, context).encode('utf-8')
