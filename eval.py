@@ -962,12 +962,13 @@ def ParseExpr(expr, sym, parent_env):
     if not result:
       raise ParseError('Missing operand in expression "%s"' % expr)
     lhs = copy.deepcopy(result.pop())
+    DEBUG('Reduce, op=%s, lhs=%s, rhs=%s', repr(op), repr(lhs), repr(rhs))
 
     if op == ',':
       if lhs.is_multivalue:
-	lhs._items.append(copy.deepcopy(rhs))
+        lhs._items.append(copy.deepcopy(rhs))
       else:
-	lhs = ResultMultiValue([lhs, copy.deepcopy(rhs)])
+        lhs = ResultMultiValue([lhs, copy.deepcopy(rhs)])
       result.append(lhs)
       return
 
@@ -979,7 +980,6 @@ def ParseExpr(expr, sym, parent_env):
       lhs = lhs.to_scalar()
     if rhs.is_list:
       rhs = rhs.to_scalar()
-    DEBUG('Reduce, op=%s, lhs=%s, rhs=%s', op, repr(lhs), repr(rhs))
 
     lval = lhs._value
     rval = rhs.value()
