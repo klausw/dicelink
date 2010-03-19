@@ -338,7 +338,7 @@ def RollDice(num_dice, sides, env):
 
     this_detail = ''
     die_str = str(this_die)
-    if 'explode' in env:
+    if 'explode' in env and len(rolls) > 1:
       this_detail = die_str + '!' * (len(rolls)-1)
     elif len(rolls) > 1:
       this_detail = '\\'.join(map(str, rolls))
