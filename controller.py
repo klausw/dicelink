@@ -73,7 +73,6 @@ def already_evaluated(expr):
     if new_expr == expr:
       break
     expr = new_expr
-  logging.info('expr=%s', repr(expr))
   if '=' in expr and not '(' in expr:
     return True
   return False
