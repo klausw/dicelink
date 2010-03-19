@@ -1193,6 +1193,8 @@ def ParseExpr(expr, sym, parent_env):
       if '(' in fexpr or '"' in fexpr:
 	args, fexpr = first_paren_expr(fexpr)
 	match_len = m.start('fexpr') + len(fexpr) + 1
+      elif fexpr == '':
+	args = []
       else:
 	args = fexpr.split(',')
       DEBUG('args=%s', repr(args))
