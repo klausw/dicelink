@@ -257,6 +257,7 @@ tests = [
     ('with(x=2, x, y)', r'/ParseError: Binding term "x"/'),
     ('with(X==Enh, with(Enh==X, X))', r'/ParseError: Recursive/'),
     ('with(r=1, 2', r'/ParseError: Missing closing parenthesis/'),
+    ('e(4)', 'ParseError: Unknown function "e(_). Did you mean e(_,_)?'),
   ]
 
 class EvalTest(unittest.TestCase):

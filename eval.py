@@ -1208,7 +1208,13 @@ def ParseExpr(expr, sym, parent_env):
 	rolls = ResultList([ParseExpr(fexpr, sym, env) for _ in xrange(ntimes)])
 	ShiftVal(rolls)
       else:
-        raise ParseError('Unknown function "%s(%s)"' % (fname, ','.join(['_']*len(args))))
+	didyoumean = ''
+	for func in sym:
+	  if func.startswith(fname + '$'):
+	    nargs = func.count('$')
+	    didyoumean = ' Did you mean %s(%s)?' % (fname, ','.join(['_']*nargs))
+	    
+        raise ParseError('Unknown function "%s(%s).%s"' % (fname, ','.join(['_']*len(args)), didyoumean))
 
     start += match_len
 
