@@ -749,7 +749,7 @@ def fn_concat(sym, env, *args):
       items.append(lval)
       all_dice = False
   if all_dice:
-    return ResultDice(items, '+'.join(details))
+    return ResultDice(items, ','.join(details))
   else:
     return ResultList(items)
 
@@ -838,8 +838,6 @@ FUNCTIONS = {
   # flagged
 }
 
-DOLLAR_RE = re.compile(r'\$')
-
 def eval_with(sym, env, bindings, expr):
   sym_save = {}
   sym_remove = {}
@@ -856,6 +854,8 @@ def eval_with(sym, env, bindings, expr):
   for key in sym_remove:
     del sym[key]
   return ret
+
+DOLLAR_RE = re.compile(r'\$')
 
 class Function(object):
   def __init__(self, proto, expansion):
