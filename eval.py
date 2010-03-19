@@ -199,6 +199,17 @@ class Result(object):
       {True: ", const", False: ""}[self.is_constant],
       {True: ", num", False: ""}[self.is_numeric()])
 
+class ResultDie(Result):
+  def __init__(self, roll, detail):
+    Result.__init__(self, roll, detail, {}, is_constant=False)
+
+  def detailvalue(self):
+    maybe_detail = self.detail()
+    if maybe_detail:
+      return maybe_detail
+    else:
+      return self.publicval()
+
 class ResultList(Result):
   def __init__(self, items):
     Result.__init__(self, 0, map(lambda x: x.detail(), items), {})
@@ -231,6 +242,8 @@ class ResultMultiValue(ResultList):
 class ResultDice(ResultList):
   def __init__(self, items):
     ResultList.__init__(self, items)
+    self.is_constant = False
+    self._delim = ','
   def show_as_list(self):
     return False
   def detail_paren(self):
@@ -291,13 +304,15 @@ def RollDice(num_dice, sides, env):
     # Collect results for one component die roll
     dice.append(this_die)
 
+    this_detail = ''
+    die_str = str(this_die)
     if 'explode' in env:
-      txt = '!' * (len(rolls)-1)
-      details.append(txt)
+      this_detail = die_str + '!' * (len(rolls)-1)
     elif len(rolls) > 1:
-      details.append('\\'.join(map(str, rolls)))
-    else:
-      details.append('')
+      this_detail = '\\'.join(map(str, rolls))
+    if 'max' in env or 'avg' in env:
+      this_detail = '=' + die_str
+    details.append(this_detail)
   else:
     result = sum(dice)
   # Special cases for D&D-style d20 rolls
@@ -312,10 +327,8 @@ def RollDice(num_dice, sides, env):
     sides,
     ','.join(details))
   #return Result(result, detail, flags, is_constant=False)
-  ret = ResultDice([Result(x, d, {}, is_constant=False) for x, d in zip(dice, details)])
+  ret = ResultDice([ResultDie(x, d) for x, d in zip(dice, details)])
   # FIXME, move to constructor
-  ret.is_constant = False
-  ret._delim = ','
   ret._detail = '%sd%d' % (
     {1:''}.get(num_dice, str(num_dice)),
     sides)
@@ -502,10 +515,11 @@ def filter_list(list, pred):
     if pred(i, old):
       continue
     new = copy.deepcopy(RESULT_NIL)
-    maybe_detail = ''
-    if old.has_detail():
-      maybe_detail = '%s=' % old.detail()
-    new._detail = '/*%s%s*/' % (maybe_detail, old.value())
+    #maybe_detail = ''
+    #if old.has_detail():
+    #  maybe_detail = '%s=' % old.detail()
+    #new._detail = '/*%s%s*/' % (maybe_detail, old.value())
+    new._detail = '/*%s*/' % (old.detailvalue())
     all._items[i] = new
   return all
 
@@ -696,14 +710,21 @@ def fn_append(sym, env, listarg, *args):
   return ResultList(items)
 
 def fn_concat(sym, env, *args):
+  all_dice = True
   items = []
   for arg in args:
     lval = ParseExpr(arg, sym, env)
+    if not isinstance(lval, ResultDice):
+      all_dice = False
     if lval.is_list:
       items += lval.items()
     else:
       items.append(lval)
-  return ResultList(items)
+      all_dice = False
+  if all_dice:
+    return ResultDice(items)
+  else:
+    return ResultList(items)
 
 def fn_nth(sym, env, numexpr, expr):
   num = ParseExpr(numexpr, sym, env).value()
