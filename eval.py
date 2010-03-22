@@ -823,11 +823,11 @@ FUNCTIONS = {
   'map': fn_map, # binds _ and _i
   'filter': fn_filter, # binds _ and _i, takes a boolean expr
   'list': fn_list,
-  ### undocumented
-  'reroll_if': fn_reroll_if,
   'append': fn_append,
   'concat': fn_concat,
   'pool': fn_pool,
+  ### undocumented
+  'reroll_if': fn_reroll_if,
   #'range': fn_range, # needs sanity check for ranges!
   ### intentionally undocumented
   'conflicttest': fn_conflicttest,
