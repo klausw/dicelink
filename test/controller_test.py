@@ -19,6 +19,15 @@ class ControllerTest(unittest.TestCase):
     self.assertTrue(controller.already_evaluated('[Roll(4) =4:"with(Parens)"]'))
     self.assertTrue(controller.already_evaluated('[if(2==(1+1), "yes", "no") ="yes"]'))
 
+  def test_anchors(self):
+    self.assertEqual(controller.fix_anchor(' abc', 1, 4), (1, 4))
+    self.assertEqual(controller.fix_anchor(' abc\n', 1, 5), (1, 4))
+
+    self.assertEqual(controller.fix_anchor(' \n', 1, 2), (1, 1))
+    self.assertEqual(controller.fix_anchor(' \nabc', 1, 5), (1, 1))
+    self.assertEqual(controller.fix_anchor('  \n', 1, 3), (1, 1))
+    self.assertEqual(controller.fix_anchor('  \nabc', 1, 6), (1, 1))
+
 if __name__ == '__main__':
   logging.getLogger().setLevel(logging.DEBUG)
   unittest.main()

@@ -8,6 +8,7 @@ from waveapi import ops
 import controller
 import config
 import charstore_gae
+import dicelink # for canonical_campaign only, FIXME
 
 #GADGET_URL='http://dicelink.appspot.com/static/counter.xml'
 
@@ -88,6 +89,17 @@ def OnBlipDeleted(properties, context):
 
   charstore_gae.DeleteCharactersInBlip(waveId, waveletId, blipId)
 
+# Cleanup: Wave leaves newlines annotated as links? Ignore everything
+# after "\n", and ensure the preceding part has non-whitespace content.
+def bad_anchor(txt):
+  newline_pos = txt.find('\n')
+  if newline_pos >= 0:
+    txt = txt[:newline_pos]
+  txt = txt.strip()
+  return not len(txt) > 0
+
+TRAILING_AT_RE = re.compile('@ \s* $', re.X)
+
 def OnBlipSubmitted(properties, context):
   """Invoked when a blip was submitted."""
   blipId = properties['blipId']
@@ -107,8 +119,33 @@ def OnBlipSubmitted(properties, context):
 
   def replacer(start, end, texts):
     return SetTextWithAttributes(doc, start, end, texts)
+  def sheetTxt():
+    replacements = []
+    for anno in blip.GetAnnotations():
+      if 'link/' in anno.name:
+        link = dicelink.canonical_campaign(anno.value)
+        if '!w+' in link:
+	  start, end = controller.fix_anchor(txt, anno.range.start, anno.range.end)
+	  if start == end:
+            logging.info('ignoring malformed anchor text')
+            continue
+          logging.debug('found link %s (%d-%d)', repr(link), anno.range.start, anno.range.end)
+	  if TRAILING_AT_RE.search(txt[:start]):
+            logging.info('Converting wave link %s to wave ID %s', repr(txt[start:end]), link)
+	    replacements.append((start, end, link))
+    parts = []
+    lastIdx = 0
+    for start, end, link in sorted(replacements, key=lambda x: x[0]):
+      if lastIdx < start:
+        parts.append(txt[lastIdx:start])
+      parts.append(link)
+      lastIdx = end
+    if lastIdx < len(txt):
+      parts.append(txt[lastIdx:])
+    return ''.join(parts)
+
   storage = charstore_gae.GaeCharStore(creator, modifier, waveId, waveletId, blipId)
-  controller.process_text(txt, replacer, storage)
+  controller.process_text(txt, replacer, storage, sheetTxt)
 
   #doc.GadgetSubmitDelta(document.Gadget(GADGET_URL), {'count': num})
 

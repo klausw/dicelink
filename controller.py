@@ -18,8 +18,10 @@ EXPR_RE = re.compile(r'''
   \]
   ''', re.X)
 
-def process_text(txt, replacer, storage):
+def process_text(txt, replacer, storage, optSheetTxt=None):
   if charsheet.isCharSheet(txt):
+    if optSheetTxt is not None:
+      txt = optSheetTxt()
     char = charsheet.CharSheet(txt)
     if char:
       logging.info('save char sheet, name="%s", keys=%d, bytes=%d', char.name, len(char.dict), len(txt))
@@ -76,6 +78,18 @@ def already_evaluated(expr):
   if '=' in expr and not '(' in expr:
     return True
   return False
+
+# Cleanup: Wave leaves newlines annotated as links? Ignore everything
+# after "\n", and ensure the preceding part has non-whitespace content.
+def fix_anchor(full_txt, start, end):
+  txt = full_txt[start:end]
+  newline_pos = txt.find('\n')
+  if newline_pos >= 0:
+    txt = txt[:newline_pos]
+    end = start + len(txt)
+  if not txt.strip():
+    end = start
+  return start, end
 
 def eval_expr(txt, replacer, storage):
   # calls replacer(start, end, texts) => offset_delta
@@ -214,6 +228,8 @@ def get_char_and_template(storage, charname):
     else:
       if error is None:
 	error = 'Template "%s" not found. ' % template_name
+      if '!w' in template_name:
+	error += 'Missing "@" before wave ID or link in _template? '
       out.append([error, ('style/color', 'red')])
   for k, v in DEFAULT_SYM.iteritems():
     sym.setdefault(k, v)
