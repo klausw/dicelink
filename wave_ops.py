@@ -12,13 +12,18 @@ import dicelink # for canonical_campaign only, FIXME
 #GADGET_URL='http://dicelink.appspot.com/static/counter.xml'
 
 def SetTextWithAttributes(blip, start, end, texts):
-  logging.debug("start=%s end=%s texts=%s", start, end, texts);
+  logging.info("start=%s end=%s texts=%s", start, end, texts);
   old_len = end - start 
   if old_len > 0:
     blip.range(start, end).delete()
   new_len = 0
   for lst in reversed(texts):
-    blip.at(start).insert(lst[0], bundled_annotations=lst[1:])
+    # Argh. No consistent way to insert text that works everywhere,
+    # including before the first and after the last character.
+    if start == 0:
+      blip.at(start).insert(lst[0], bundled_annotations=lst[1:])
+    else:
+      blip.at(start-1).insert_after(lst[0], bundled_annotations=lst[1:])
     new_len += len(lst[0])
   return new_len - old_len
 
@@ -30,34 +35,38 @@ def OnRobotAdded(event, wavelet):
   blip = wavelet.reply()
   blip.append('DiceLink joined. ')
   blip.append('Privacy policy, Help', [('link/manual', 'https://wave.google.com/wave/#restored:wave:googlewave.com!w%252BeDRGxAAiN')])
-  #doc.AppendElement(
-  #    document.FormElement(
-  #        document.ELEMENT_TYPE.BUTTON, 'test', value='Test!'))
-
-  #counter = document.Gadget(GADGET_URL)
-  #doc.AppendElement(counter)
+  #blip.append(' ', [('link/manual', None)])
+  #blip.append(element.Button('Configure', value='Configure'))
 
 def OnButtonClicked(event, wavelet):
-  logging.info("button clicked:\n%s\n%s", repr(event), repr(wavelet))
   blipId = event.blip_id
   blip = event.blip
   if not blip:
     logging.warning('Blip "%s" not found in context: %s' % (blipId, repr(event)))
     return
 
+  button = event.button_name
   modifier = event.modified_by
-  #button = event.button_name
+  logging.info("button '%s' clicked by '%s'", button, modifier)
+  if button == 'Configure':
+    blip.all(element.Button).delete()
+    blip.append(element.Check('inline', value='true'))
+    blip.append(element.Label('inline', caption='support inline XdY+Z rolls'))
+    blip.append(element.Button('Update', value='Update'))
+  elif button == 'Update':
+    for index, elem in enumerate(blip.elements):
+      # Guard for LINE element that has no properties, can't use elem.name
+      name = elem.get('name', '')
+      value = elem.get('value', '')
+      logging.info('element name="%s" value="%s"', name, value)
+      if name == 'inline':
+	logging.info('do something with inline')
+    blip.all(element.Button).delete()
+    blip.all(element.Check).delete()
+    blip.all(element.Label).delete()
+    blip.append(element.Button('Configure', value='Configure'))
+    
 
-  doc = blip.GetDocument()
-  txt = doc.GetText()
-  for index, elem in enumerate(blip.elements):
-    if issubclass(elem, element.Button):
-      if elem.name == 'test':
-	blip.append(element.Button('Roll', value='Roll!'))
-	blip.append(element.Input('test2', value='Test?'))
-      else:
-	blip.append(element.Button('test', value='Test again!'))
-    logging.info("element: %s %s", repr(index), repr(elem))
 
 def OnBlipDeleted(event, wavelet):
   """Invoked when a blip was deleted."""

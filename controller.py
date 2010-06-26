@@ -18,7 +18,13 @@ EXPR_RE = re.compile(r'''
   \]
   ''', re.X)
 
-def process_text(txt, replacer, storage, optSheetTxt=None):
+DEFAULT_CONFIG = {
+  'inline': True # expand inline XdY+Z rolls without []
+}
+
+def process_text(txt, replacer, storage, optSheetTxt=None, config=None):
+  if config is None:
+    config = DEFAULT_CONFIG
   if charsheet.isCharSheet(txt):
     if optSheetTxt is not None:
       txt = optSheetTxt()
@@ -29,13 +35,14 @@ def process_text(txt, replacer, storage, optSheetTxt=None):
       storage.setdefault(char.name)
   elif '[' in txt:
     eval_expr(txt, replacer, storage)
-  else: # legacy inline XdS+N syntax
+  elif config['inline']: # legacy inline XdS+N syntax
     offset = 0
     for spec in roll.GetRollMatches(txt):
       num, detail = roll.RollDice(spec)
-      logging.info('inline: %s=%s (%s)', spec['spec'], num, detail)
       match_start = spec['start'] + offset
       match_end = spec['end'] + offset
+      logging.info('inline: %s=%s (%s)', spec['spec'], num, detail)
+      logging.debug('inline: @%d-%d in "%s"', match_start, match_end, txt)
       offset += replacer(match_start, match_end, [
 	[spec['spec'], ('style/color', '#aa00ff')],
 	['=%d' % num, ('style/fontWeight', 'bold')],
