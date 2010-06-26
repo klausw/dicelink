@@ -34,16 +34,6 @@ from google.appengine.ext import db
 #   wavelet: "googlewave.com!conv+root"
 #   text: "Name: Hero; Diplomacy: d20+17"
 #
-# Sheet (obsolescent, copy into "Characters" and set "migrated" flag)
-#   ID/Name: name="Hero"
-#   text: "Name: Hero; Diplomacy: d20+17"
-#
-# BlipMap
-#   ID/Name: "name=char_Hero"
-#   blip: "b+AaBbCcDdEe"
-#   wave: "googlewave.com!w+FfGgHhIi"
-#   wavelet: "googlewave.com!conv+root"
-#
 # DefaultChar
 #   ID/Name: name="FOO@googlewave.com"
 #   name: "MyCharacter"
@@ -64,33 +54,20 @@ class Msg(db.Model):
 def SaveMsg(user, text, group=''):
   Msg(author=user, content=text, group=group).put()
 
-class BlipMap(db.Model):
-  wave = db.StringProperty(multiline=False)
-  wavelet = db.StringProperty(multiline=False)
-  blip = db.StringProperty(multiline=False)
-
-def SaveBlipMap(key, wave, wavelet, blip):
-  BlipMap(key_name=key, wave=wave, wavelet=wavelet, blip=blip).put()
-
-def GetBlipMap(key):
-  item = BlipMap.get_by_key_name(key)
-  if item:
-    return item.wave, item.wavelet, item.blip
-  else:
-    return None, None, None
-
-class Sheet(db.Model):
-  text = db.TextProperty()
-
-def SaveSheet(name, text):
-  Sheet(key_name=name, text=text).put()
-
-def GetSheet(name):
-  sheet = Sheet.get_by_key_name(name)
-  if sheet:
-    return sheet.text
-  else:
-    return None
+#class BlipMap(db.Model):
+#  wave = db.StringProperty(multiline=False)
+#  wavelet = db.StringProperty(multiline=False)
+#  blip = db.StringProperty(multiline=False)
+#
+#def SaveBlipMap(key, wave, wavelet, blip):
+#  BlipMap(key_name=key, wave=wave, wavelet=wavelet, blip=blip).put()
+#
+#def GetBlipMap(key):
+#  item = BlipMap.get_by_key_name(key)
+#  if item:
+#    return item.wave, item.wavelet, item.blip
+#  else:
+#    return None, None, None
 
 class DefaultChar(db.Model):
   name = db.StringProperty(multiline=False)

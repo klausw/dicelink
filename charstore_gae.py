@@ -28,8 +28,6 @@ class GaeCharStore(charstore.CharStore):
       sheet_txt = persist.GetCharacter(name, self.modifier, fromWave, self.waveletId)
 
       if not sheet_txt:
-	sheet_txt = persist.GetSheet(name) # backwards compatible
-      if not sheet_txt:
 	return None
       sheet = charsheet.CharSheet(sheet_txt)
       if fromWave != self.waveId:
