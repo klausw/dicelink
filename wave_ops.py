@@ -7,6 +7,7 @@ from waveapi import ops
 import controller
 import config
 import charstore_gae
+import charsheet # for GadgetStateChanged, FIXME
 import dicelink # for canonical_campaign only, FIXME
 
 #GADGET_URL='http://dicelink.appspot.com/static/counter.xml'
@@ -128,10 +129,32 @@ def OnBlipSubmitted(event, wavelet):
       lastIdx = end
     if lastIdx < len(txt):
       parts.append(txt[lastIdx:])
-    return ''.join(parts)
+    sheet_txt = ''.join(parts)
+    if len(sheet_txt) > 0 and sheet_txt[-1] != '\n':
+      sheet_txt += '\n'
+    # Expand gadget values
+    for index, elem in enumerate(blip.elements):
+      logging.info('Sheet element %s at %s', elem.type, index)
+      if elem.type == 'GADGET':
+	name = elem.get('name')
+	value = None
+	for keyname in ('value', 'pool'):
+	  value = elem.get(keyname)
+	  if value is not None:
+	    break
+	if name is not None and value is not None:
+	  gadget_add = '%s: %s #!GADGET index=%d key=%s' % (name, value, index, keyname)
+	  logging.info('Add gadget to sheet: "%s"', gadget_add)
+	  sheet_txt += '%s\n' % (gadget_add)
+
+    return sheet_txt
 
   storage = charstore_gae.GaeCharStore(creator, modifier, waveId, waveletId, blipId)
   controller.process_text(txt, replacer, storage, sheetTxt)
 
   #doc.GadgetSubmitDelta(document.Gadget(GADGET_URL), {'count': num})
 
+def OnGadgetStateChanged(event, wavelet):
+  txt = event.blip.text
+  if charsheet.isCharSheet(txt):
+    return OnBlipSubmitted(event, wavelet)

@@ -15,6 +15,7 @@ if __name__ == '__main__':
   myRobot.register_handler(events.WaveletBlipRemoved, wave_ops.OnBlipDeleted, events.Context.SELF)
   myRobot.register_handler(events.FormButtonClicked, wave_ops.OnButtonClicked, events.Context.SELF)
   myRobot.register_handler(events.BlipSubmitted, wave_ops.OnBlipSubmitted, events.Context.SELF)
+  myRobot.register_handler(events.GadgetStateChanged, wave_ops.OnGadgetStateChanged, events.Context.SELF)
 
   # ../secrets/*.py
   #myRobot.setup_oauth(credentials.CONSUMER_KEY, credentials.CONSUMER_SECRET, server_rpc_base='http://gmodules.com/api/rpc') 
