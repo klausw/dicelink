@@ -188,6 +188,7 @@ tests = [
     ('withEnhFour MeleeBonus, MeleeBonus', '(9, 9)=18'),
     ('withEnhUnicode MeleeBonus', 9),
     ('withEnh8 MeleeBonus', 13),
+    ('withEnh-2 MeleeBonus', 3),
     ('withEnh8 withStr20 MeleeBonus', 14),
     ("Quot'1", 1),
     ("Test Quot'2", 2),
@@ -321,4 +322,15 @@ class EvalTest(unittest.TestCase):
 if __name__ == '__main__':
   if 'DEBUG' in os.environ:
     logging.getLogger().setLevel(logging.DEBUG)
-  unittest.main()
+  if sys.argv[1:]:
+    eval.setDebug(True)
+    for expr in sys.argv[1:]:
+      try:
+	result = eval.ParseExpr(expr, sym, env)
+	result_val = result.value()
+	result_str = str(result)
+      except eval.ParseError, e:
+	result_str = e.__class__.__name__ + ': ' + str(e)
+      print expr, '=>', result_str
+  else:
+    unittest.main()

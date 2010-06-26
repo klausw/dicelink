@@ -131,6 +131,11 @@ MAX_ROLLS=2000
 MAX_OBJECTS = 900 # <1000, or Python breaks first on recursion
 
 DEBUG_PARSER = False
+def setDebug(flag):
+  global DEBUG_PARSER
+  DEBUG_PARSER = flag
+  if flag:
+    logging.getLogger().setLevel(logging.DEBUG)
 
 class Result(object):
   def __init__(self, value, detail, flags, is_constant=True, is_numeric=True):
@@ -904,8 +909,9 @@ def first_paren_expr(fexpr):
   return args, fexpr
 
 def eval_fname(sym, env, fname, args, trailexpr):
-  #logging.debug('fname=%s args=%s trailexpr=%s', repr(fname), repr(args), repr(trailexpr))
+  logging.debug('fname=%s args=%s trailexpr=%s', repr(fname), repr(args), repr(trailexpr))
   func = None
+  fn = None
   if '$' in fname:
     func = sym.get(fname)
   else:
@@ -1141,8 +1147,23 @@ def ParseExpr(expr, sym, parent_env):
 	  fname += matched[fidx:]
 	  #logging.debug('maybe-fn: fname="%s" args=%s', fname, repr(args))
 	  func = LookupSym(fname, sym)
+
+	  # func(x) style function called as func-2 ? Only checked if there is no match
+	  # for "func" with no arguments.
 	  if func is None:
-	    if expr[start + match_len:][:1] == '(':
+	    nextChar = expr[start + match_len:][:1]
+	    if nextChar == '-':
+	      mneg = NUMBER_RE.match(expr[start + match_len + 1:])
+	      if mneg:
+		fname += '$'
+		func = LookupSym(fname, sym)
+		if func is not None:
+		  args.append(-int(mneg.group()))
+		  match_len += 1 + mneg.end()
+
+	  if func is None:
+	    nextChar = expr[start + match_len:][:1]
+	    if nextChar == '(':
 	      raise ParseError('Missing closing parenthesis after "%s" ?' % expr)
 	    if orig_matched == matched:
 	      raise ParseError('Symbol "%s" not found' % matched)
@@ -1245,18 +1266,3 @@ def ParseExpr(expr, sym, parent_env):
   DEBUG('=%s', repr(ret))
   return ret
 
-if __name__ == '__main__':
-  sys.path.append('test')
-  import eval_test
-  random.seed(2) # specially picked, first d20 gets a 20
-  logging.getLogger().setLevel(logging.DEBUG)
-  DEBUG_PARSER = True
-
-  for expr in sys.argv[1:]:
-    try:
-      result = ParseExpr(expr, eval_test.sym, eval_test.env)
-      result_val = result.value()
-      result_str = str(result)
-    except ParseError, e:
-      result_str = e.__class__.__name__ + ': ' + str(e)
-    print expr, '=>', result_str
