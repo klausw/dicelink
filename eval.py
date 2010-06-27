@@ -1,32 +1,35 @@
+# Copyright 2009, 2010 Klaus Weidner <klausw@google.com>
+# 
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+# 
+#        http://www.apache.org/licenses/LICENSE-2.0
+# 
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+
 import copy
 import logging
 import random
 import re
 import sys
 
-# TODO:
-# explode(dice): dice + explode(roll(count(>=6, dice), 6))
-# support Name: "My Name" with quotes
-# treat &gt; &lt; &amp; as operator synonyms to support encoded input?
-
 # Expression evaluator
 #
 # Intent is to have intuitive behavior, and lightweight syntax that doesn't
 # intrude too much on narrative text that is mixed with the expressions.
 #
-# Symbol names may contain whitespace, this makes parsing a bit more complicated.
-#
-# Syntax:
-# - whitespace not permitted except where specifically shown
-# - case insensitive
-# - no nested parens (but may assign complex things to a Symbol)
+# Symbol names may contain whitespace and apostrophes, this makes parsing
+# a bit more complicated.
 #
 # Expr: Object (Whitespace* '+' Whitespace* Object)*
 # Object: Func '(' Expr ')' | Dice | Symbol | Number
 # Func: Number 'x' | 'max'
 # DieRoll: Number 'd' Number ('b' Number)?
-#
-# Examples:
 
 OBJECT_RE = re.compile(ur'''
   (?:
