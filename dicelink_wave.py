@@ -1,54 +1,35 @@
-from waveapi import document
+# Copyright 2009, 2010 Klaus Weidner <klausw@google.com>
+# 
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+# 
+#        http://www.apache.org/licenses/LICENSE-2.0
+# 
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+
 from waveapi import events
-from waveapi import model
 from waveapi import robot
+from waveapi import appengine_robot_runner
+import logging
 
-import re
-import roll
-
-VERSION='7'
-
-def OnRobotAdded(properties, context):
-  """Invoked when the robot has been added."""
-  root_wavelet = context.GetRootWavelet()
-  root_wavelet.CreateBlip().GetDocument().SetText('DiceLink v%s joined.' % VERSION)
-
-def SetTextWithAttributes(doc, start, end, texts):
-  old_len = end - start 
-  new_text = ''.join([p[0] for p in texts])
-  doc.SetTextInRange(document.Range(start, end), new_text)
-  for text, anno, val in texts:
-    doc.SetAnnotation(document.Range(start, start+len(text)), anno, val)
-    start += len(text)
-  return len(new_text) - old_len
-
-def OnBlipSubmitted(properties, context):
-  """Invoked when a blip was submitted."""
-  blip = context.GetBlipById(properties['blipId'])
-  creator = blip.GetCreator()
-  doc = blip.GetDocument()
-  txt = doc.GetText()
-  out = []
-  offset = 0
-  for spec in roll.GetRollMatches(txt):
-    num, detail = roll.RollDice(spec)
-    match_start = spec['start'] +offset
-    match_end = spec['end'] + offset
-    offset += SetTextWithAttributes(doc, match_start, match_end, [
-      (spec['spec'], 'style/color', '#aa00ff'),
-      ('=%d' % num, 'style/fontWeight', 'bold'),
-      (' [%s]' % detail, 'style/color', 'gray'),
-    ])
-    #out.append('%s rolled %s: %d [%s]' % (creator, spec['spec'], num, detail))
-  if out:
-    root_wavelet = context.GetRootWavelet()
-    root_wavelet.CreateBlip().GetDocument().SetText('\n'.join(out))
+import config
+import wave_ops
 
 if __name__ == '__main__':
-  myRobot = robot.Robot('dicelink', 
-      image_url='http://dicelink.appspot.com/img/icon.png',
-      version=VERSION,
-      profile_url='http://dicelink.appspot.com/')
-  myRobot.RegisterHandler(events.WAVELET_SELF_ADDED, OnRobotAdded)
-  myRobot.RegisterHandler(events.BLIP_SUBMITTED, OnBlipSubmitted)
-  myRobot.Run()
+  myRobot = robot.Robot(config.getConfig('Name', 'dicelink'),
+      image_url=config.getConfig('ImageUrl', 'http://dicelink.appspot.com/img/icon.png'),
+      profile_url=config.getConfig('ProfileUrl', 'http://dicelink.appspot.com/'))
+  logging.getLogger().setLevel(config.getConfig('LogLevel', logging.INFO))
+  myRobot.register_handler(events.WaveletSelfAdded, wave_ops.OnRobotAdded)
+  myRobot.register_handler(events.WaveletBlipRemoved, wave_ops.OnBlipDeleted, events.Context.SELF)
+  myRobot.register_handler(events.FormButtonClicked, wave_ops.OnButtonClicked, events.Context.SELF)
+  myRobot.register_handler(events.BlipSubmitted, wave_ops.OnBlipSubmitted, events.Context.SELF)
+  myRobot.register_handler(events.GadgetStateChanged, wave_ops.OnGadgetStateChanged, events.Context.SELF)
+
+  #myRobot.setup_oauth(credentials.CONSUMER_KEY, credentials.CONSUMER_SECRET, server_rpc_base='http://gmodules.com/api/rpc') 
+  appengine_robot_runner.run(myRobot)

@@ -1,0 +1,27 @@
+--- waveId testWave ---------------------------
+--- creator firstuser, modifier firstuser, blipId testBlip.firstchar ---------------------------
+Name: firstchar
+x: d20 "firstchar"
+
+--- creator otheruser, modifier otheruser, blipId testBlip.otherchar ---------------------------
+Name: otherchar
+x: d20 "otherchar"
+
+--- creator firstuser, blipId testBlip.encounter -----------------------------------------------
+--- modifier firstuser, seed 2 -----------------------------------------------
+[x] #% 20:"firstchar"
+
+--- modifier otheruser, seed 1 -----------------------------------------------
+[firstuser:x d20(20)=20:"firstchar"] #% 20:"firstchar"
+[x] #% 3:"otherchar"
+
+--- modifier firstuser -----------------------------------------------
+# Clean up
+[!clear firstchar] #% cleared: 1
+[!clear otherchar] #% cleared: 0
+
+--- modifier otheruser -----------------------------------------------
+# Clean up
+[!clear firstchar] #% cleared: 0
+[!clear otherchar] #% cleared: 1
+

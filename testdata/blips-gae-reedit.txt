@@ -1,0 +1,45 @@
+--- creator firstuser, modifier firstuser, waveId testWave1, blipId testBlip.char ---------------------------
+Name: char
+x: 1 "firstuser"
+
+--------------------------------------------------
+Name: char
+x: 2 "firstuser"
+# (edit by original creator)
+
+--- blipId # -----------------------------------------------
+# use by original creator
+[char: x] #% 2:"firstuser"
+
+--- modifier otheruser ---------------------------
+--- creator otheruser, blipId # ---------------------------
+# use by other user in wave
+[char: x] #% 2:"firstuser"
+
+--- creator firstuser, blipId testBlip.char ---------------------------
+Name: char
+x: 3 "otheruser"
+# (modification by other user)
+
+--- creator otheruser, blipId # ---------------------------
+# Use by other user, should show new value
+[char: x] #% 3:"otheruser"
+
+--- modifier firstuser, blipId # ---------------------------
+# Use by original creator, should also show new value
+[char: x] #% 3:"otheruser"
+
+--- modifier firstuser, waveId testWave2, blipId # ---------------------------
+# Use by original creator in other wave, should still show new value
+[char: x] #% 3:"otheruser"
+
+--- modifier otheruser, waveId testWave2, blipId # ---------------------------
+# Use by other user in other wave, should not be visible
+[char: x] #% not found
+
+--- modifier firstuser, waveId testWave2, blipId # ---------------------------
+# Use by original creator in other wave, should still show new value
+[char: x] #% 3:"otheruser"
+# Clean up
+[!clear char] #% cleared: 1
+

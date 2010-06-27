@@ -1,5 +1,5 @@
 application: dicelink
-version: 4
+version: 8
 runtime: python
 api_version: 1
 
