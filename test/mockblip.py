@@ -143,4 +143,5 @@ def doBlip(blip, context):
 if __name__ == '__main__':
   context = MakeContext()
   for blip in BlipIterator(context, sys.argv[1:]):
+    print '--------'
     print doBlip(blip, context).encode('utf-8')
