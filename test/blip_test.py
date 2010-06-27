@@ -39,6 +39,10 @@ class BlipTest(unittest.TestCase):
       self.assertTrue(out, 'No result for test blip: %s' % repr(out))
 
 if __name__ == '__main__':
-  logging.getLogger().setLevel(logging.DEBUG)
+  import os
+  if 'DEBUG' in os.environ:
+    logging.getLogger().setLevel(logging.DEBUG)
+  else:
+    logging.getLogger().setLevel(logging.WARNING)
   unittest.main()
 
