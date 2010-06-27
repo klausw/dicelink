@@ -36,23 +36,26 @@ def OnRobotAdded(event, wavelet):
   blip = wavelet.reply()
   blip.append('DiceLink joined. ')
   blip.append('Privacy policy, Help', [('link/manual', 'https://wave.google.com/wave/#restored:wave:googlewave.com!w%252BeDRGxAAiN')])
-  #blip.append(' ', [('link/manual', None)])
-  #blip.append(element.Button('Configure', value='Configure'))
+  blip.append(' ', [('link/manual', None)])
+  blip.append(element.Button('Configure', value='Configure'))
 
 def OnButtonClicked(event, wavelet):
   blipId = event.blip_id
   blip = event.blip
+  modifier = event.modified_by
   if not blip:
     logging.warning('Blip "%s" not found in context: %s' % (blipId, repr(event)))
     return
 
+  storage = charstore_gae.GaeCharStore(blip.creator, modifier, wavelet.wave_id, wavelet.wavelet_id, event.blip_id)
+  config = storage.getconfig()
+
   button = event.button_name
-  modifier = event.modified_by
   logging.info("button '%s' clicked by '%s'", button, modifier)
   if button == 'Configure':
     blip.all(element.Button).delete()
-    blip.append(element.Check('inline', value='true'))
-    blip.append(element.Label('inline', caption='support inline XdY+Z rolls'))
+    blip.append(element.Check('inline', value=config.get('inline').lower()))
+    blip.append(element.Label('inline', caption='expand XdY+Z rolls outside [] expressions '))
     blip.append(element.Button('Update', value='Update'))
   elif button == 'Update':
     for index, elem in enumerate(blip.elements):
@@ -61,13 +64,15 @@ def OnButtonClicked(event, wavelet):
       value = elem.get('value', '')
       logging.info('element name="%s" value="%s"', name, value)
       if name == 'inline':
-	logging.info('do something with inline')
+	if value == 'true':
+	  config['inline'] = 'True'
+	else:
+	  config['inline'] = 'False'
     blip.all(element.Button).delete()
     blip.all(element.Check).delete()
     blip.all(element.Label).delete()
+    storage.setconfig(config)
     blip.append(element.Button('Configure', value='Configure'))
-    
-
 
 def OnBlipDeleted(event, wavelet):
   """Invoked when a blip was deleted."""

@@ -63,6 +63,12 @@ class GaeCharStore(charstore.CharStore):
     except google.appengine.runtime.apiproxy_errors.Error, e:
       raise charstore.AppengineError(str(e))
 
+  def getconfig(self):
+    return persist.GetConfig(self.waveId, charstore.WAVE_CONFIG_DEFAULT)
+
+  def setconfig(self, config):
+    return persist.SaveConfig(self.waveId, config)
+  
   def list(self, name):
     out = []
     def show(txt, *attrs):

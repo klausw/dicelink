@@ -25,6 +25,12 @@ from google.appengine.ext import db
 
 ### Data in app engine
 #
+# WaveConfig
+#   # one per wave
+#   Id/Name: "googlewave.com!w+FfGgHhIi"
+#   settings: StringList
+#     "key=value" strings
+#
 # Characters
 #   ID/Name: id=1111
 #  *name: "Hero"
@@ -44,6 +50,27 @@ from google.appengine.ext import db
 #   content: "rolled d20: 8[8]
 #   date: 2009-10-01 00:00:00.111222
 
+class WaveConfig(db.Model):
+  settings = db.StringListProperty()
+
+def GetConfig(waveId, defaults):
+  settings = defaults.copy()
+  entry = WaveConfig.get_by_key_name(waveId)
+  if entry:
+    for entry in entry.settings:
+      item = entry.split('=')
+      if len(item) == 1:
+	settings[item[0]] = True
+      else:
+	settings[item[0]] = item[1]
+    return settings
+  else:
+    return settings
+
+def SaveConfig(waveId, settings):
+  lst = [ '%s=%s' % (k, v) for (k, v) in settings.iteritems()]
+  WaveConfig(key_name=waveId, settings = lst).put()
+  logging.info('config saved for wave %s: %s', waveId, repr(lst))
 
 class Msg(db.Model):
   author = db.StringProperty()

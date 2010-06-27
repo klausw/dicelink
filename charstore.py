@@ -16,6 +16,10 @@ class AppengineError(Error):
   def __str__(self):
     return 'AppengineError: ' + self.msg
 
+# All values must be strings, use repr() serialized format
+WAVE_CONFIG_DEFAULT = {
+  'inline': 'True' # expand inline XdY+Z rolls without []
+}
 
 class CharStore(object):
   def __init__(self):
@@ -33,6 +37,12 @@ class CharStore(object):
   def setdefault(self, name):
     return
 
+  def getconfig(self):
+    return WAVE_CONFIG_DEFAULT.copy()
+
+  def setconfig(self, config):
+    return
+
   def list(self, name):
     return []
 
@@ -45,6 +55,7 @@ class CharStore(object):
 class InMemoryCharStore(CharStore):
   def __init__(self):
     self.characters = {}
+    self.config = WAVE_CONFIG_DEFAULT.copy()
     self.default = None
 
   def get(self, name, altcontext=None, key=None):
@@ -58,6 +69,12 @@ class InMemoryCharStore(CharStore):
 
   def setdefault(self, name):
     self.default = name
+
+  def getconfig(self):
+    return self.config
+
+  def setconfig(self, config):
+    self.config = config
 
   def clear(self, name):
     if name in self.characters:
