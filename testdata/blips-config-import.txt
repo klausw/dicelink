@@ -1,0 +1,67 @@
+--- creator p0, modifier p0, waveId p0A, blipId # ---------------------------
+Name: global stuff
+
+bonus: 42
+
+--- creator p1, modifier p1, waveId p1A, blipId # ---------------------------
+Name: P1Char
+
+value: "player one char"
+calc: bonus + 1000
+
+--------------------------------------------------
+Name: SameChar
+
+value: "player one SameChar"
+
+--- creator p2, modifier p2, waveId p2A, blipId # ---------------------------
+Name: P2Char
+
+value: "player two char"
+calc: bonus + 2000
+
+--------------------------------------------------
+Name: SameChar
+
+value: "player two SameChar"
+
+--- creator p3, modifier p3, waveId p3G, blipId # ---------------------------
+Name: P3Char
+
+value: "player three char"
+
+--------------------------------------------------
+EXPECT_ERROR: [P1Char: value] #% Sheet "P1Char" not found
+EXPECT_ERROR: [P2Char: value] #% Sheet "P2Char" not found
+[P3Char: value] #% "player three char"
+EXPECT_ERROR: [bonus] #% Symbol "bonus" not found
+
+--------------------------------------------------
+### DiceLink Settings ###
+
+Import: @p1A # player one's stuff
+Import: @p2A # player two's stuff
+Import: @p0A # templates
+Global template: global stuff
+
+--------------------------------------------------
+[P1Char: value] #% "player one char"
+[P2Char: value] #% "player two char"
+[P3Char: value] #% "player three char"
+[SameChar: value] #% "player one SameChar"
+[bonus] #% 42
+[P1Char: calc] #% 1042
+[P2Char: calc] #% 2042
+
+--------------------------------------------------
+### DiceLink Settings ###
+
+Import: @p2A # player two's stuff
+Import: @p1A # player one's stuff
+Import: @p0A # templates
+Global template: global stuff
+
+--------------------------------------------------
+[SameChar: value] #% "player two SameChar"
+
+--------------------------------------------------

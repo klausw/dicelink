@@ -20,6 +20,8 @@ import charstore
 import eval
 import roll
 
+SETTINGS_BLIP_HEAD = '### DiceLink Settings ###'
+
 EXPR_RE = re.compile(r'''
   \[
   (?: 
@@ -29,11 +31,54 @@ EXPR_RE = re.compile(r'''
   \]
   ''', re.X)
 
+def is_settings(txt):
+  idx = txt.find(SETTINGS_BLIP_HEAD)
+  return (idx >= 0 and idx <= 2)
+
+def parse_setting_line(line):
+  colon_pos = line.find(':')
+  comment_pos = line.find('#')
+  if colon_pos < 0 or (comment_pos >= 0 and comment_pos < colon_pos):
+    return (None, None, line)
+  # don't strip off 
+  cmd = line[0:colon_pos].strip()
+  if comment_pos >= 0:
+    return (cmd, line[colon_pos+1:comment_pos].strip(), line[comment_pos:])
+  else:
+    return (cmd, line[colon_pos+1:].strip(), None)
+
+def apply_settings(txt, storage):
+  config = {}
+  for line in txt.split('\n'):
+    cmd, arg, comment = parse_setting_line(line)
+    if not cmd:
+      continue
+    if cmd == 'Inline rolls':
+      if arg.lower() == 'true':
+	config['inline'] = 'True'
+      else:
+	config['inline'] = 'False'
+    if cmd == 'Import':
+      imports = config.setdefault('imports', [])
+      if comment:
+	imports.append(arg + comment)
+      else:
+	imports.append(arg)
+    if cmd == 'Global template':
+      config['global'] = arg
+  
+  storage.setconfig(config)
+
 # All values must be strings, use repr() serialized format
 def process_text(txt, replacer, storage, optSheetTxt=None):
-  if charsheet.isCharSheet(txt):
+  if is_settings(txt):
     if optSheetTxt is not None:
-      txt = optSheetTxt()
+      txt = optSheetTxt(True)
+    logging.info('got settings: %s', txt)
+    apply_settings(txt, storage)
+  elif charsheet.isCharSheet(txt):
+    if optSheetTxt is not None:
+      txt = optSheetTxt(False)
     char = charsheet.CharSheet(txt)
     if char:
       logging.info('save char sheet, name="%s", keys=%d, bytes=%d', char.name, len(char.dict), len(txt))
@@ -249,6 +294,17 @@ def get_char_and_template(storage, charname):
       out.append([error, ('style/color', 'red')])
   for k, v in DEFAULT_SYM.iteritems():
     sym.setdefault(k, v)
+
+  # get global definitions for this wave
+  config = storage.getconfig() # lazy load configuration
+  globals_name = config.get('global', None)
+  if globals_name:
+    globals = storage.get(globals_name)
+    if globals:
+      logging.info('Using global sheet "%s" (%d)', globals_name, len(globals.dict))
+      for k, v in globals.dict.iteritems():
+	sym.setdefault(k, v)
+
   return sym, char, template, out, log
 
 TRAILING_DIGIT_RE=re.compile(r'^(.*?)(\d+)$')

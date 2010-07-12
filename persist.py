@@ -45,6 +45,11 @@ from google.appengine.ext import db
 #   settings: StringList
 #     "key=value" strings
 #
+# SearchList
+#   # one per wave
+#   searchlist: StringList
+#     "@WaveId#comment" strings
+#
 # Characters
 #   ID/Name: id=1111
 #  *name: "Hero"
@@ -67,24 +72,59 @@ from google.appengine.ext import db
 class WaveConfig(db.Model):
   settings = db.StringListProperty()
 
-def GetConfig(waveId, defaults):
-  settings = defaults.copy()
-  entry = WaveConfig.get_by_key_name(waveId)
-  if entry:
-    for entry in entry.settings:
-      item = entry.split('=')
-      if len(item) == 1:
-	settings[item[0]] = True
-      else:
-	settings[item[0]] = item[1]
-    return settings
-  else:
-    return settings
+class SearchList(db.Model):
+  searchlist = db.StringListProperty()
 
-def SaveConfig(waveId, settings):
-  lst = [ '%s=%s' % (k, v) for (k, v) in settings.iteritems()]
-  WaveConfig(key_name=waveId, settings = lst).put()
-  logging.info('config saved for wave %s: %s', waveId, repr(lst))
+def getWaveId(raw):
+  start = 0
+  end = len(raw)
+
+  at_pos = raw.find('@')
+  if at_pos >= 0:
+    start = at_pos + 1
+
+  comment_pos = raw.find('#')
+  if comment_pos >= 0:
+    end = comment_pos
+
+  return raw[start:end].strip()
+
+def GetSearchList(waveId):
+  search = SearchList.get_by_key_name(waveId)
+  if search:
+    lst = [waveId] + [getWaveId(x) for x in search.searchlist]
+    logging.info('GetSearchList: %s', repr(lst))
+    return lst
+  else:
+    return [waveId]
+
+def GetConfig(waveId, defaults):
+  config = defaults.copy()
+  entry = WaveConfig.get_by_key_name(waveId)
+  if not entry:
+    return config
+  for entry in entry.settings:
+    item = entry.split('=')
+    if len(item) == 1:
+      config[item[0]] = True
+    else:
+      config[item[0]] = item[1]
+  search = SearchList.get_by_key_name(waveId)
+  if search:
+    config['imports'] = search.searchlist
+  return config
+
+def SaveConfig(waveId, config):
+  lst = []
+  imports = []
+  for (key, value) in config.iteritems():
+    if key == 'imports':
+      imports = value
+    else:
+      lst.append('%s=%s' % (key, value))
+  WaveConfig(key_name=waveId, settings=lst).put()
+  SearchList(key_name=waveId, searchlist=imports).put()
+  logging.info('config saved for wave %s: settings=%s, imports=%s', waveId, repr(lst), repr(imports))
 
 class Msg(db.Model):
   author = db.StringProperty()
@@ -142,21 +182,18 @@ def FindCharacter(name, owner, wave, unused_wavelet):
     seen_chars[key] = True
     return False
 
-  for query in (Characters.all().filter('name =', name).filter('wave =', wave),
-	        Characters.all().filter('name =', name).filter('owner =', owner)):
-    results = query.order('-date').fetch(100)
+  for wave in GetSearchList(wave):
+    query = Characters.all().filter('name =', name).filter('wave =', wave)
+    results = query.fetch(100)
     for result in results:
       if not seen(result):
 	yield result
 
-  # try again without sorting for uninitialized date fields
-  for query in (Characters.all().filter('name =', name).filter('wave =', wave),
-	        Characters.all().filter('name =', name).filter('owner =', owner)):
-    results = query.fetch(100)
-    for result in results:
-      if not seen(result):
-	logging.info('Yielding no-date character: key=%s, name=%s, owner=%s, wave=%s', result.key(), result.name, result.owner, result.wave)
-	yield result
+  query = Characters.all().filter('name =', name).filter('owner =', owner)
+  results = query.fetch(100)
+  for result in results:
+    if not seen(result):
+      yield result
 
 def GetCharacter(name, owner, wave, wavelet):
   for result in FindCharacter(name, owner, wave, wavelet):

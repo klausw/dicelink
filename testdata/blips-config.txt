@@ -1,0 +1,30 @@
+--- creator firstuser, modifier firstuser, waveId testWave1, blipId # ---------------------------
+--- seed 3 ---
+roll d20 inline #% =5
+
+--------------------------------------------------
+### DiceLink Settings ###
+
+# expand XdY+Z rolls outside [] expressions? (true/false)
+Inline rolls: false
+
+--------------------------------------------------
+this d20 is not rolled #% this d20 is not rolled
+
+--------------------------------------------------
+Name: common stuff
+
+bonus: 42
+
+--------------------------------------------------
+EXPECT_ERROR: [::bonus] #% Symbol "bonus" not found
+
+--------------------------------------------------
+### DiceLink Settings ###
+
+Global template: common stuff
+
+--------------------------------------------------
+[::bonus] #% 42
+
+--------------------------------------------------
