@@ -33,6 +33,7 @@ class AppengineError(Error):
 # All values must be strings, use repr() serialized format
 WAVE_CONFIG_DEFAULT = {
   'inline': 'True', # expand inline XdY+Z rolls without []
+  'global': '',
   'imports': [],
 }
 
