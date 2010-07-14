@@ -90,6 +90,9 @@ def getWaveId(raw):
   return raw[start:end].strip()
 
 def GetSearchList(waveId):
+  if not waveId:
+    # malformed: "_template: Name @"
+    return []
   search = SearchList.get_by_key_name(waveId)
   if search:
     lst = [waveId] + [getWaveId(x) for x in search.searchlist]
