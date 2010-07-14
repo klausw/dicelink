@@ -1,38 +1,56 @@
 --- creator p0, modifier p0, waveId p0A, blipId # ---------------------------
 Name: global stuff
+_access: public
 
 bonus: 42
 
+--------------------------------------------------
+Name: global secrets
+
+secret: 101
+
 --- creator p1, modifier p1, waveId p1A, blipId # ---------------------------
 Name: P1Char
+_access: public
 
 value: "player one char"
 calc: bonus + 1000
 
 --------------------------------------------------
 Name: SameChar
+_access: public
 
 value: "player one SameChar"
 
 --- creator p2, modifier p2, waveId p2A, blipId # ---------------------------
 Name: P2Char
+_access: public
 
 value: "player two char"
 calc: bonus + 2000
 
 --------------------------------------------------
+Name: P2Secret
+
+value: "player two secret char"
+calc: bonus + 12000
+
+--------------------------------------------------
 Name: SameChar
+_access: public
 
 value: "player two SameChar"
 
 --- creator p3, modifier p3, waveId p3G, blipId # ---------------------------
 Name: P3Char
+_access: public
 
 value: "player three char"
 
 --------------------------------------------------
 EXPECT_ERROR: [P1Char: value] #% Sheet "P1Char" not found
 EXPECT_ERROR: [P2Char: value] #% Sheet "P2Char" not found
+EXPECT_ERROR: [P2Secret: value] #% Sheet "P2Secret" not found
 [P3Char: value] #% "player three char"
 EXPECT_ERROR: [bonus] #% Symbol "bonus" not found
 
@@ -54,6 +72,14 @@ Global template: global stuff
 [P2Char: calc] #% 2042
 
 --------------------------------------------------
+p3 shouldn't be allowed to access the secret character.
+EXPECT_ERROR: [P2Secret: value] #% PermissionError
+
+--- modifier p2 -----------------------------------------------
+It should work for p2 normally.
+[P2Secret: value] #% "player two secret char"
+
+--- modifier p3 -----------------------------------------------
 ### DiceLink Settings ###
 
 Import: @p2A # player two's stuff
@@ -65,3 +91,21 @@ Global template: global stuff
 [SameChar: value] #% "player two SameChar"
 
 --------------------------------------------------
+### DiceLink Settings ###
+
+Global template: global secrets
+
+--------------------------------------------------
+EXPECT_ERROR: [:secret] #% Global template "global secrets" not found
+
+--------------------------------------------------
+### DiceLink Settings ###
+
+Import: @p0A # templates
+Global template: global secrets
+
+--------------------------------------------------
+EXPECT_ERROR: [:secret] #% PermissionError
+
+--- modifier p0 -----------------------------------------------
+[:secret] #% 101

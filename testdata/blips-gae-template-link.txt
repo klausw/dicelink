@@ -1,0 +1,30 @@
+--- creator firstuser, modifier firstuser, waveId testWave1, blipId # ---------------------------
+Name: base
+_access: public
+b: 1 "base"
+
+--- creator otheruser, modifier otheruser, waveId testWave2 ---------------------------
+EXPECT_ERROR: [base: b] #% Sheet "base" not found.
+EXPECT_ERROR: [personal: b] #% Sheet "personal" not found.
+EXPECT_ERROR: [keyed: b] #% Sheet "keyed" not found.
+
+--------------------------------------------------
+Name: other_ok
+_template: "base" @testWave1
+x: 2 "otheruser"
+
+--------------------------------------------------
+Name: other_bad
+_template: "base" @
+x: 2 "otheruser"
+
+--------------------------------------------------
+[other_bad: b] #% Template "base" not found
+[other_ok: b] #% 1:"base"
+
+--- creator firstuser, modifier firstuser ---------------------------
+[!clear base] #% cleared: 1
+
+--- creator otheruser, modifier otheruser ---------------------------
+[!clear other_ok] #% cleared: 1
+[!clear other_bad] #% cleared: 1

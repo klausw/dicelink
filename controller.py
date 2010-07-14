@@ -258,7 +258,10 @@ def get_char_and_template(storage, charname):
   sym = {}
   char = None
   if charname:
-    char = storage.get(charname)
+    try:
+      char = storage.get(charname)
+    except charstore.Error, e:
+      out.append(['%s ' % str(e), ('style/color', 'red')])
     if char:
       sym = char.dict
       log.append('Char "%s" (%d),' % (char.name, len(char.dict)))
@@ -279,7 +282,7 @@ def get_char_and_template(storage, charname):
     try:
       template = storage.get(template_name, template_location, template_key)
     except charstore.Error, e:
-      error = str(e) + ' '
+      error = '%s ' % str(e)
     if template:
       logging.debug('Using template "%s" for "%s"' % (template.name, char.name))
       for k, v in template.dict.iteritems():
@@ -299,11 +302,17 @@ def get_char_and_template(storage, charname):
   config = storage.getconfig() # lazy load configuration
   globals_name = config.get('global', None)
   if globals_name:
-    globals = storage.get(globals_name)
-    if globals:
-      logging.info('Using global sheet "%s" (%d)', globals_name, len(globals.dict))
-      for k, v in globals.dict.iteritems():
-	sym.setdefault(k, v)
+    logging.info('Trying to load global sheet "%s"', globals_name)
+    try:
+      globals = storage.get(globals_name)
+      if globals:
+	logging.info('Using global sheet "%s" (%d)', globals_name, len(globals.dict))
+	for k, v in globals.dict.iteritems():
+	  sym.setdefault(k, v)
+      else:
+	out.append(['Global template "%s" not found. ' % globals_name, ('style/color', 'red')])
+    except charstore.Error, e:
+      out.append(['Global template: %s ' % str(e), ('style/color', 'red')])
 
   return sym, char, template, out, log
 

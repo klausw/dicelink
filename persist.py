@@ -201,8 +201,8 @@ def FindCharacter(name, owner, wave, unused_wavelet):
 def GetCharacter(name, owner, wave, wavelet):
   for result in FindCharacter(name, owner, wave, wavelet):
     # get first, ignore the rest
-    return result.text
-  return None
+    return result.text, result.wave, result.owner
+  return None, None, None
 
 def ClearCharacterForOwner(name, owner):
   deleted = 0

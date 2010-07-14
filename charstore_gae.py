@@ -39,22 +39,22 @@ class GaeCharStore(charstore.CharStore):
       fromWave = self.waveId
       if altcontext is not None:
 	fromWave = altcontext
-      sheet_txt = persist.GetCharacter(name, self.modifier, fromWave, self.waveletId)
+      sheet_txt, foundWave, foundOwner = persist.GetCharacter(name, self.modifier, fromWave, self.waveletId)
 
       if not sheet_txt:
 	return None
       sheet = charsheet.CharSheet(sheet_txt)
-      if fromWave != self.waveId:
+      if foundWave != self.waveId and foundOwner != self.modifier:
 	# Privacy/security check: permissions for other-Wave characters?
 	perms = sheet.dict.get('_access')
 	#logging.info('perms=%s, key=%s', repr(perms), repr(key))
 	if perms is None:
-	  raise charstore.PermissionError('Template "%s" exists but is not public, add "_access: public" to the template blip to share it.' % name)
+	  raise charstore.PermissionError('Sheet "%s" exists but is not public, add "_access: public" to the sheet blip to share it.' % name)
 	if perms.lower() != 'public':
 	  if key is None:
-	    raise charstore.PermissionError('Template "%s" is password protected. Change "@%s" to "@%s=PASSWORD" in the _template line.' % (name, fromWave, fromWave))
+	    raise charstore.PermissionError('Sheet "%s" is password protected. Change "@%s" to "@%s=PASSWORD" in the _template line.' % (name, fromWave, fromWave))
 	  if key != perms:
-	    raise charstore.PermissionError('Template "%s" is password protected, the supplied password is incorrect.' % name)
+	    raise charstore.PermissionError('Sheet "%s" is password protected, the supplied password is incorrect.' % name)
       return sheet
     except google.appengine.runtime.apiproxy_errors.Error, e:
       raise charstore.AppengineError(str(e))
