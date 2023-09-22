@@ -1,12 +1,64 @@
 <html>
-  <head><title>{{ title }}</title></head>
-  <body onload="document.roll.content.focus()">
+  <head>
+  <title>{{ title }}</title>
+  <script type='text/javascript'>
+
+// main function: look for new messages
+var get_new_messages = function() {
+  var timestamp = new Date().getTime().toString();
+  add_msg('waiting for key: ' + timestamp);
+  var url = '/fetchMessages?date=' + timestamp + '&campaign={{ campaign }}';
+  send_jsonp(url, 'add_msgs');
+};
+
+// externally called via jsonp by dicelink
+function add_msgs(msgs, wait_key) {
+  for (var i in msgs) {
+    add_msg(msgs[i]);
+  }
+  // wait for evar to change
+  var url = 'http://pocketworkstation.org/cgi-bin/evar.pl?key=' + wait_key;
+  send_jsonp(url, 'update');
+};
+
+// externally called via jsonp by evar
+function update(key, got_data) {
+  if (got_data) {
+    add_msg('<b>someone</b> posted an update: ' + key);
+  }
+  // start over
+  get_new_messages();
+}
+
+// outbound jsonp
+var send_jsonp = function(url, callback) {
+  var script = document.createElement('script');
+  script.src = url + '&callback=' + callback;
+  script.type = 'text/javascript';
+  document.body.appendChild(script);
+}
+
+// helper function: add one message to body
+var add_msg = function(msg) {
+  var msgs = document.getElementById('messages');
+  var span = document.createElement('span');
+  span.innerHTML = msg;
+  msgs.appendChild(span);
+  msgs.appendChild(document.createElement('br'));
+};
+
+  </script>
+  </head>
+  <body onload="document.roll.content.focus(); get_new_messages()">
     <h1>{{ title }}</h1>
+
+    <div id='messages'>
     {% for msg in msgs %}
       {{ msg.date }}
       <b>{{ msg.author }}:</b>
       {{ msg.content }}<br />
     {% endfor %}
+    </div>
 
     <form action="/roll" name="roll" method="post">
     {% if is_logged_in %}

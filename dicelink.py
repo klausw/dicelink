@@ -239,12 +239,23 @@ class RunTests(webapp.RequestHandler):
       self.response.out.write(out.encode('utf-8'))
       self.response.out.write('<hr>')
 
+class FetchMessages(webapp.RequestHandler):
+  def get(self):
+    date = self.request.get('date')
+    campaign = self.request.get('campaign')
+    callback = self.request.get('callback')
+    self.response.out.write('%s([%s], %s);' % (
+      callback,
+      ','.join([repr(x) for x in ('msg 1', 'msg 2')]),
+      key));
+
 application = webapp.WSGIApplication(
                                      [('/', MainPage),
                                       ('/roll', Roll),
                                       #('/chars', CharList)],
                                       ('/char', CharUpdateForm),
                                       ('/charupdate', CharUpdate),
+				      ('/fetchMessages', FetchMessages),
                                       ('/deadbeef/ftest', RunTests),
 				     ],
                                      debug=True)
